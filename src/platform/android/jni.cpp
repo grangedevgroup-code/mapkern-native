@@ -228,10 +228,6 @@ extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_native
   handle(ptr)->map->zoomBy(delta, x, y, true);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeDoubleTap(JNIEnv*, jobject, jlong ptr, jdouble x, jdouble y) {
-  handle(ptr)->map->doubleTap(x, y);
-}
-
 extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetStyle(JNIEnv* env, jobject, jlong ptr, jstring style) {
   handle(ptr)->map->setStyle(str(env, style));
 }
