@@ -336,8 +336,8 @@ void Painter::renderDrapes(const FrameInput& frame, const std::vector<CoveringTi
     for (auto* pieces : demPieces) {
       for (const auto& p : *pieces) {
         if (!view.overlaps(p.tile->z, p.tile->x, p.tile->y, p.wrap)) continue;
-        sig = mixd(mixd(mix64(mix64(sig, p.tile->key), p.tile->revision + (p.tile->data && p.tile->data->gradientTexture.valid() ? 1 : 0)), p.opacity),
-                   p.clip.x0 + p.clip.y0 * 3 + p.clip.x1 * 7 + p.wrap * 11);
+        const uint64_t version = p.tile->data ? p.tile->data->version * 2 + (p.tile->data->gradientTexture.valid() ? 1 : 0) : 0;
+        sig = mixd(mixd(mix64(mix64(mix64(sig, p.tile->key), p.tile->revision), version), p.opacity), p.clip.x0 + p.clip.y0 * 3 + p.clip.x1 * 7 + p.wrap * 11);
       }
       sig = mix64(sig, 0xfffd);
     }
@@ -539,6 +539,9 @@ void Painter::drawGlobe(const FrameInput& frame, const std::vector<CoveringTile>
 
 bool Painter::render(const FrameInput& frame, const FrameTarget& target) {
   const auto started = std::chrono::steady_clock::now();
+  auto since = [](std::chrono::steady_clock::time_point from) {
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
+  };
   stats_ = {};
   frameCount_++;
   format_ = target.offscreen ? target.format
@@ -569,8 +572,10 @@ bool Painter::render(const FrameInput& frame, const FrameTarget& target) {
       cover.round = true;
       slots = t.coveringTiles(cover);
     }
+    const auto drapesStarted = std::chrono::steady_clock::now();
     renderDrapes(frame, slots);
     if (globe) renderPoles(slots);
+    stats_.drapeMs = since(drapesStarted);
   } else {
     drapesBehind_ = false;
   }
@@ -602,11 +607,13 @@ bool Painter::render(const FrameInput& frame, const FrameTarget& target) {
       stats_.layers++;
     }
   }
+  const auto labelsStarted = std::chrono::steady_clock::now();
   drawLabels(frame);
+  stats_.labelMs = since(labelsStarted);
   if (frame.overlay) stats_.drawCalls += frame.overlay->draw(format_, t.width, t.height);
   sg_end_pass();
   sg_commit();
-  stats_.cpuMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  stats_.cpuMs = since(started);
   return true;
 }
 
