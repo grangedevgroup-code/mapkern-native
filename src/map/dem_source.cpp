@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "diag/diagnostics.hpp"
 #include "formats/image.hpp"
 
 namespace mapkern {
