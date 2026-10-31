@@ -379,6 +379,32 @@ void Overlay::layout(const OverlayState& s) {
     };
     elements_.push_back(std::move(e));
   }
+  if (!s.hud.empty()) {
+    const double px = touch ? 12 : 11;
+    const double line = px * 1.35;
+    double widest = 0;
+    std::string key = "hud";
+    for (const auto& l : s.hud) {
+      widest = std::max(widest, Canvas::measure(l, px, false));
+      key += "|" + l;
+    }
+    const double w = std::min(widest + 16, W - 2 * m), h = line * static_cast<double>(s.hud.size()) + 10;
+    const std::vector<std::string> lines = s.hud;
+    Element e;
+    e.id = "hud";
+    e.x = m;
+    e.y = m;
+    e.w = w;
+    e.h = h;
+    e.pad = 2;
+    e.key = key;
+    e.paint = [=](Canvas& c, double ox, double oy) {
+      c.roundRect(ox, oy, w, h, 6, rgba(10, 14, 18, 0.72));
+      for (size_t i = 0; i < lines.size(); i++)
+        c.text(ox + 8, oy + 5 + line * static_cast<double>(i) + Canvas::ascent(px, false), lines[i], px, false, rgba(240, 244, 248, 0.96));
+    };
+    elements_.push_back(std::move(e));
+  }
 }
 
 const Overlay::Element* Overlay::hit(double x, double y, size_t* part) const {
