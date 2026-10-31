@@ -215,6 +215,7 @@ void fetchBytes(const RequestParameters& params, CancelToken cancel, int timeout
     }
     if (offline() && state == StoredState::Unknown) {
       if (auto hit = cache->read(params.url)) {
+        diag::cacheServed(hit->data ? hit->data->size() : 0, true);
         FetchResult r;
         r.empty = false;
         r.data = hit->data;
