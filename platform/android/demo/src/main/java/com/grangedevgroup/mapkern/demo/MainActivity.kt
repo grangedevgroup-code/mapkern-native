@@ -35,6 +35,7 @@ class MainActivity : Activity() {
         diagnostics.start()
         extras?.getString("view")?.let { map.setView(it) }
         extras?.getString("basemap")?.toIntOrNull()?.let { map.selectBasemap(it) }
+        if (extras?.getString("bench") == "gestures") map.post { Bench(map).gestures() }
     }
 
     override fun onResume() {
