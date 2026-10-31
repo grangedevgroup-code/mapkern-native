@@ -316,6 +316,10 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_com_grangedevgroup_mapkern_MapView_
   return bytes(env, out);
 }
 
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetGpuTiming(JNIEnv*, jobject, jlong ptr, jboolean enabled) {
+  handle(ptr)->gpu.enabled = enabled;
+}
+
 extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetHud(JNIEnv* env, jobject, jlong ptr, jstring text) {
   std::vector<std::string> lines;
   const std::string all = str(env, text);
