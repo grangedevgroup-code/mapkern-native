@@ -138,7 +138,7 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* v, void*) {
 
 extern "C" JNIEXPORT jlong JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeCreate(JNIEnv* env, jobject view, jstring style, jstring cache,
                                                                                         jdouble lng, jdouble lat, jdouble zoom, jboolean globe,
-                                                                                        jdouble ratio) {
+                                                                                        jdouble ratio, jboolean controls) {
   auto* h = new Handle();
   mapkern::MapOptions o;
   o.style = str(env, style);
@@ -148,6 +148,9 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_grangedevgroup_mapkern_MapView_nativ
   o.zoom = zoom;
   o.globe = globe;
   o.pixelRatio = ratio;
+  o.controls = controls;
+  o.touchControls = true;
+  o.view = globe ? "globe" : "terrain";
   h->map = std::make_unique<mapkern::Map>(o);
   h->view = env->NewGlobalRef(view);
   jclass cls = env->GetObjectClass(view);
@@ -222,6 +225,10 @@ extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_native
 
 extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeZoomBy(JNIEnv*, jobject, jlong ptr, jdouble delta, jdouble x, jdouble y) {
   handle(ptr)->map->zoomBy(delta, x, y, true);
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeDoubleTap(JNIEnv*, jobject, jlong ptr, jdouble x, jdouble y) {
+  handle(ptr)->map->doubleTap(x, y);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetStyle(JNIEnv* env, jobject, jlong ptr, jstring style) {
