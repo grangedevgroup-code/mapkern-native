@@ -7,6 +7,7 @@
 #include "core/utf8.hpp"
 #include "render/shaders/map.glsl.h"
 #include "style/color.hpp"
+#include "style/import.hpp"
 
 namespace mapkern {
 
@@ -612,7 +613,7 @@ void LabelRenderer::placement(Transform& transform, const std::vector<SymbolLaye
       TextShape shape;
       shape.lineHeight = lineHeight;
       std::string iconId;
-      for (size_t a = labels.anchorStart[i]; a + 2 < labels.anchorStart[i + 1] + 0 || a + 2 < labels.anchorStart[i + 1]; a += 3) {
+      for (size_t a = labels.anchorStart[i]; a + 2 < labels.anchorStart[i + 1]; a += 3) {
         const double tx = labels.anchors[a] / extent, ty = labels.anchors[a + 1] / extent;
         if (tx < clip.x0 || tx >= clip.x1 || ty < clip.y0 || ty >= clip.y1) continue;
         const double wx = piece.wrap + (tile.x + tx) / n, wy = (tile.y + ty) / n;
