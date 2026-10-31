@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-option(MAPKERN_RENDER "Build the renderer" ON)
+option(MAPKERN_RENDER "Build the renderer" OFF)
 option(MAPKERN_VIEWER "Build the desktop viewer" ON)
 option(MAPKERN_TESTS "Build the tests" ON)
 option(MAPKERN_SHARED "Build the C API as a shared library" ON)
