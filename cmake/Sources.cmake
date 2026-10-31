@@ -9,6 +9,7 @@ set(MAPKERN_CORE_SOURCES
   src/formats/mvt.cpp
   src/formats/pmtiles.cpp
   src/formats/sqlite.cpp
+  src/formats/wuffs.cpp
   src/geo/tessellate.cpp
   src/map/tileset.cpp
   src/net/http.cpp
