@@ -42,6 +42,10 @@ class RasterSource : public Source {
   RasterSource(std::string id, Value spec, SourceContext& ctx, std::string type = "raster");
   ~RasterSource() override;
   bool loaded() const override { return manager != nullptr; }
+  void setCacheBytes(size_t bytes) override {
+    Source::setCacheBytes(bytes);
+    if (manager) manager->options.cacheBytes = bytes;
+  }
   void load() override;
   void update(Transform& transform, double now, const std::vector<Transform*>& predicted) override;
   bool uploadPending(double deadline, double now) override;
