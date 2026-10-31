@@ -103,6 +103,20 @@ void DrapeEntry::release() {
   image = {};
 }
 
+void Painter::resetGpu() {
+  drapes_.clear();
+  meshVertices_ = {};
+  meshIndices_ = {};
+  capVertices_ = {};
+  capIndices_ = {};
+  meshCount_ = capCount_ = 0;
+  poleImage_ = {};
+  poleTexture_ = {};
+  poleAttachment_ = {};
+  flatDem_ = {};
+  labels_.resetGpu();
+}
+
 Painter::~Painter() {
   for (auto& [k, d] : drapes_) d.release();
   meshVertices_.release();
