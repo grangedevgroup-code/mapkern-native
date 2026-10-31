@@ -94,3 +94,25 @@ jobs:
         with:
           name: dotnet
           path: out/nuget/*.nupkg
+
+  apple:
+    name: Apple SDK
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Ninja
+        run: brew install ninja
+      - name: Build XCFramework
+        run: sh platform/apple/build-xcframework.sh
+      - name: Build Swift package for macOS
+        working-directory: platform/apple
+        run: swift build -c release
+      - name: Build Swift package for iOS
+        working-directory: platform/apple
+        run: xcodebuild -scheme Mapkern -destination 'generic/platform=iOS' -quiet build
+      - name: Archive XCFramework
+        run: cd platform/apple && zip -qry Mapkern.xcframework.zip Mapkern.xcframework
+      - uses: actions/upload-artifact@v5
+        with:
+          name: apple
+          path: platform/apple/Mapkern.xcframework.zip
