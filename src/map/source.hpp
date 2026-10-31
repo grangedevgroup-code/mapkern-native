@@ -50,7 +50,7 @@ class Source {
   virtual bool loaded() const = 0;
   virtual void load() = 0;
   virtual void update(Transform& transform, double now, const std::vector<Transform*>& predicted) = 0;
-  virtual bool uploadPending(double deadline, double now) = 0;
+  virtual bool uploadPending(UploadBudget& budget, double now) = 0;
   virtual bool isIdle() const = 0;
   virtual bool isFading() const { return false; }
   virtual std::optional<TileStats> stats() const { return std::nullopt; }
