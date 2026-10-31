@@ -256,6 +256,7 @@ void Painter::renderDrapes(const FrameInput& frame, const std::vector<CoveringTi
   uint64_t common = mixd(0, frame.pixelRatio);
   std::vector<const std::vector<RenderPiece<VectorTileData>>*> vectorPieces;
   std::vector<const std::vector<RenderPiece<RasterTileData>>*> rasterPieces;
+  std::vector<const std::vector<RenderPiece<DemTileData>>*> demPieces;
   for (const StyleLayer* l : layers) {
     common = mix64(mix64(mix64(common, l->uid), l->revision), l->motion);
     auto it = frame.sources->find(l->source);
@@ -266,7 +267,14 @@ void Painter::renderDrapes(const FrameInput& frame, const std::vector<CoveringTi
     if (auto* r = dynamic_cast<RasterSource*>(it->second.get()); r && r->manager) {
       if (std::find(rasterPieces.begin(), rasterPieces.end(), &r->manager->pieces) == rasterPieces.end()) rasterPieces.push_back(&r->manager->pieces);
     }
+    if (auto* d = dynamic_cast<DemSource*>(it->second.get()); d && d->manager) {
+      if (std::find(demPieces.begin(), demPieces.end(), &d->manager->pieces) == demPieces.end()) demPieces.push_back(&d->manager->pieces);
+    }
   }
+  if (std::any_of(layers.begin(), layers.end(), [](const StyleLayer* l) {
+        return l->type == LayerType::Hillshade && l->fixed("illuminationAnchor").stringOr("viewport") != "map";
+      }))
+    common = mixd(common, t.bearing());
   const PassFormat saved = format_;
   format_ = {SG_PIXELFORMAT_RGBA8, SG_PIXELFORMAT_NONE, 1};
   const double deadline = nowMs() + 6;
@@ -308,6 +316,14 @@ void Painter::renderDrapes(const FrameInput& frame, const std::vector<CoveringTi
                    p.clip.x0 + p.clip.y0 * 3 + p.clip.x1 * 7 + p.wrap * 11);
       }
       sig = mix64(sig, 0xfffe);
+    }
+    for (auto* pieces : demPieces) {
+      for (const auto& p : *pieces) {
+        if (!view.overlaps(p.tile->z, p.tile->x, p.tile->y, p.wrap)) continue;
+        sig = mixd(mixd(mix64(mix64(sig, p.tile->key), p.tile->revision + (p.tile->data && p.tile->data->gradientTexture.valid() ? 1 : 0)), p.opacity),
+                   p.clip.x0 + p.clip.y0 * 3 + p.clip.x1 * 7 + p.wrap * 11);
+      }
+      sig = mix64(sig, 0xfffd);
     }
     DrapeEntry& entry = drapes_[slotKey(slot)];
     entry.used = frameCount_;
@@ -587,6 +603,10 @@ void Painter::drawLayer(const FrameInput& frame, const StyleLayer& layer) {
   Source* source = it->second.get();
   if (layer.type == LayerType::Raster) {
     if (auto* raster = dynamic_cast<RasterSource*>(source)) drawRaster(frame, layer, *raster);
+    return;
+  }
+  if (layer.type == LayerType::Hillshade) {
+    if (auto* dem = dynamic_cast<DemSource*>(source)) drawHillshade(frame, layer, *dem);
     return;
   }
   if (auto* vector = dynamic_cast<VectorSource*>(source)) drawVector(frame, layer, *vector);
