@@ -672,6 +672,127 @@ void Painter::drawRaster(const FrameInput& frame, const StyleLayer& layer, Raste
   }
 }
 
+void Painter::drawHillshade(const FrameInput& frame, const StyleLayer& layer, DemSource& source) {
+  if (!source.manager || source.manager->pieces.empty()) return;
+  const RenderView& t = *frame.view;
+  const double zoom = t.zoom;
+  EvalContext ctx;
+  ctx.zoom = zoom;
+  const double exaggeration = std::clamp(layer.paintNumber("exaggeration", ctx), 0.0, 1.0);
+  if (exaggeration <= 0) return;
+  constexpr double kAltitude = 45 * kDeg;
+  const double anchor = layer.fixed("illuminationAnchor").stringOr("viewport") == "map" ? 0 : frame.transform->bearing();
+  const double azimuth = (layer.fixed("illuminationDirection").numberOr(335) + anchor) * kDeg;
+  mk_hillshade_params_t fs{};
+  set4(fs.u_light, std::sin(azimuth) * std::cos(kAltitude), -std::cos(azimuth) * std::cos(kAltitude), std::sin(kAltitude), std::sin(kAltitude));
+  const bool standard = layer.fixed("method").stringOr("") == "standard";
+  setColor(fs.u_shadow, premultiply(layer.paintColor("shadowColor", ctx), 1));
+  setColor(fs.u_highlight, premultiply(layer.paintColor("highlightColor", ctx), 1));
+  setColor(fs.u_accent, premultiply(layer.paintColor("accentColor", ctx), 1));
+  const double vertical = (0.5 + exaggeration) * std::exp2(0.3 * std::max(0.0, 12 - zoom));
+  const int displayZ = static_cast<int>(std::lround(zoom + std::log2(512 / source.tileSize())));
+  sg_apply_pipeline(pipeline(Program::Hillshade, SG_PRIMITIVETYPE_TRIANGLES, StencilMode::Off));
+  Gpu& gpu = Gpu::get();
+  for (const auto& piece : source.manager->pieces) {
+    auto& data = piece.tile->data;
+    if (!data) continue;
+    const GpuTexture* gradient = source.gradientTexture(*data);
+    if (!gradient) continue;
+    if (!t.overlaps(piece.tile->z, piece.tile->x, piece.tile->y, piece.wrap)) continue;
+    const int z = piece.tile->z;
+    const double n = std::exp2(z);
+    const double size = data->grid.size;
+    sg_bindings b{};
+    b.vertex_buffers[0] = gpu.quad();
+    b.views[VIEW_mk_gradient_tex] = gradient->view;
+    b.samplers[SMP_mk_gradient_smp] = gpu.sampler(true);
+    b.views[VIEW_mk_mask_tex] = data->maskTexture.valid() ? data->maskTexture.view : gpu.whiteTexture().view;
+    b.samplers[SMP_mk_mask_smp] = gpu.sampler(true);
+    sg_apply_bindings(&b);
+    mk_raster_vs_params_t vs{};
+    copyMat(vs.u_matrix, t.tileMatrix(z, piece.tile->x, piece.tile->y, piece.wrap, 1));
+    set4(vs.u_clip, piece.clip.x0, piece.clip.y0, piece.clip.x1, piece.clip.y1);
+    sg_apply_uniforms(UB_mk_raster_vs_params, SG_RANGE(vs));
+    set4(fs.u_texel_rows, size / (size + 2), 1 / (size + 2), piece.tile->y / n, (piece.tile->y + 1) / n);
+    set4(fs.u_values, vertical * n * size / kEarthCircumference, 1.2 * exaggeration, piece.opacity, standard ? 1 : 0);
+    const double sz = std::max(z, displayZ);
+    const double factor = sz < 2 ? 0.4 : sz < 4.5 ? 0.35 : 0.3;
+    const double boost = sz < 15 ? std::exp2((15 - sz) * factor) : 1;
+    set4(fs.u_values2, size * std::exp2(sz) / kEarthCircumference * boost, azimuth, exaggeration);
+    sg_apply_uniforms(UB_mk_hillshade_params, SG_RANGE(fs));
+    sg_draw(0, 6, 1);
+    stats_.drawCalls++;
+    stats_.pieces++;
+  }
+}
+
+Painter::SlotDem Painter::slotDem(const FrameInput& frame, size_t index) {
+  SlotDem out;
+  Gpu& gpu = Gpu::get();
+  out.dem = flatDem_.view;
+  out.gradient = gpu.blankTexture().view;
+  Terrain* terrain = frame.terrain;
+  if (!terrain || index >= terrain->slots.size()) return out;
+  const TerrainSlot& slot = terrain->slots[index];
+  if (!slot.dem || !slot.dem->data || !terrain->source) return out;
+  DemTileData& data = *slot.dem->data;
+  const GpuTexture* elevation = terrain->source->elevationTexture(data);
+  if (!elevation || !elevation->valid()) return out;
+  out.dem = elevation->view;
+  if (const GpuTexture* g = terrain->source->gradientTexture(data)) out.gradient = g->view;
+  out.rect = slot.rect;
+  out.size = data.grid.size;
+  out.z = data.z;
+  out.range = data.grid.max - data.grid.min;
+  out.has = true;
+  return out;
+}
+
+void Painter::drawTerrain(const FrameInput& frame, const std::vector<CoveringTile>& slots) {
+  Transform& t = *frame.transform;
+  Terrain& terrain = *frame.terrain;
+  Gpu& gpu = Gpu::get();
+  const bool flip = gpu.backend() == SG_BACKEND_GLCORE || gpu.backend() == SG_BACKEND_GLES3;
+  sg_apply_pipeline(pipeline(Program::Terrain, SG_PRIMITIVETYPE_TRIANGLES, StencilMode::Off, DepthMode::TestWrite));
+  const double ppm = t.pixelsPerMeter() * terrain.exaggeration;
+  const double relief = terrain.relief;
+  const double azimuth = (315 + t.bearing()) * kDeg;
+  for (size_t i = 0; i < slots.size(); i++) {
+    const CoveringTile& slot = slots[i];
+    auto [entry, rect] = slotDrape(slot);
+    if (!entry) continue;
+    const SlotDem dem = slotDem(frame, i);
+    const double n = std::exp2(slot.z);
+    sg_bindings b{};
+    b.vertex_buffers[0] = meshVertices_.buffer;
+    b.index_buffer = meshIndices_.buffer;
+    b.views[VIEW_mk_drape_tex] = entry->texture;
+    b.samplers[SMP_mk_drape_smp] = gpu.sampler(true);
+    b.views[VIEW_mk_dem_tex] = dem.dem;
+    b.samplers[SMP_mk_dem_smp] = gpu.sampler(false);
+    b.views[VIEW_mk_gradient_tex] = dem.gradient;
+    b.samplers[SMP_mk_gradient_smp] = gpu.sampler(true);
+    sg_apply_bindings(&b);
+    mk_terrain_vs_params_t vs{};
+    copyMat(vs.u_matrix, t.tileMatrix(slot.z, slot.x, slot.y, slot.wrap, 1));
+    set4(vs.u_dem_rect, dem.rect[0], dem.rect[1], dem.rect[2], dem.rect[3]);
+    set4(vs.u_dem_info, dem.size, dem.has ? 1 : 0, terrain.exaggeration, std::max(30.0, dem.range * 0.2) * ppm);
+    set4(vs.u_rows, slot.y / n, (slot.y + 1) / n, t.worldSize());
+    sg_apply_uniforms(UB_mk_terrain_vs_params, SG_RANGE(vs));
+    mk_terrain_fs_params_t fs{};
+    set4(fs.u_drape_rect, rect[0], rect[1], rect[2], rect[3]);
+    if (relief > 0) set4(fs.u_sun, std::sin(azimuth) * std::cos(kPi / 4), -std::cos(azimuth) * std::cos(kPi / 4), std::sin(kPi / 4), relief);
+    const double cells = dem.size;
+    set4(fs.u_grad, cells / (cells + 2), 1 / (cells + 2), dem.has ? std::exp2(dem.z) * cells / kEarthCircumference : 0, flip ? 1 : 0);
+    set4(fs.u_rows2, slot.y / n, (slot.y + 1) / n, terrain.exaggeration, dem.has ? 1 : 0);
+    set4(fs.u_dem_rect2, dem.rect[0], dem.rect[1], dem.rect[2], dem.rect[3]);
+    sg_apply_uniforms(UB_mk_terrain_fs_params, SG_RANGE(fs));
+    sg_draw(0, static_cast<int>(meshCount_), 1);
+    stats_.drawCalls++;
+    stats_.pieces++;
+  }
+}
+
 bool Painter::clipped(const RenderPiece<VectorTileData>& piece) {
   const Rect& c = piece.clip;
   return !(c.x0 <= 0 && c.y0 <= 0 && c.x1 >= 1 && c.y1 >= 1);
