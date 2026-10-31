@@ -108,17 +108,8 @@ class MapImpl {
   double lastFrameMs = 0;
   CancelToken styleRequest;
 
-  struct Pointer {
-    double x = 0, y = 0;
-  };
-  std::map<int, Pointer> pointers;
-  struct Gesture {
-    double x = 0, y = 0, distance = 0, angle = 0, zoom = 0, bearing = 0;
-    World anchor{0, 0};
-    std::deque<std::pair<double, std::array<double, 2>>> samples;
-  } gesture;
-  std::optional<std::array<double, 2>> inertia;
-  double inertiaTime = 0;
+  Gestures gestures{transform, GestureHost{[this](double x, double y) { return pickWorld(x, y); }, [this] { motion.reset(); },
+                                           [this] { invalidate(); }, [this](double d, double x, double y) { easeZoom(d, x, y); }}};
 };
 
 }
