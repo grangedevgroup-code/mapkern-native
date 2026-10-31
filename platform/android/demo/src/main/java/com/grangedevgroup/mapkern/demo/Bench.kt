@@ -14,6 +14,10 @@ class Bench(private val view: View, private val done: () -> Unit = {}) {
     private var at = 0L
 
     fun gestures() {
+        if (view.width == 0 || view.height == 0) {
+            handler.postDelayed({ gestures() }, 200)
+            return
+        }
         at = SystemClock.uptimeMillis() + 3000
         val w = view.width.toFloat()
         val h = view.height.toFloat()
