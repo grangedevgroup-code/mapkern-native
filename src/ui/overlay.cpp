@@ -117,23 +117,24 @@ std::string imperialLabel(double meters) {
 std::string plainAttribution(const std::string& html) {
   std::string out;
   bool tag = false;
-  for (size_t i = 0; i < html.size(); i++) {
-    const char ch = html[i];
+  size_t i = 0;
+  while (i < html.size()) {
+    const char ch = html[i++];
     if (ch == '<') tag = true;
     else if (ch == '>') tag = false;
     else if (!tag) {
       if (ch == '&') {
         const size_t end = html.find(';', i);
-        if (end != std::string::npos && end - i <= 8) {
-          const std::string ent = html.substr(i + 1, end - i - 1);
+        if (end != std::string::npos && end - i <= 7) {
+          const std::string ent = html.substr(i, end - i);
           if (ent == "copy") out += "\xC2\xA9";
           else if (ent == "amp") out += "&";
           else if (ent == "lt") out += "<";
           else if (ent == "gt") out += ">";
           else if (ent == "nbsp") out += " ";
           else if (ent == "quot") out += "\"";
-          else out += html.substr(i, end - i + 1);
-          i = end;
+          else out += html.substr(i - 1, end - i + 2);
+          i = end + 1;
           continue;
         }
       }
