@@ -4,7 +4,6 @@
 #include <chrono>
 #include <cmath>
 #include <mutex>
-#include <regex>
 #include <set>
 
 #include "formats/inflate.hpp"
