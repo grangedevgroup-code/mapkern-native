@@ -8,7 +8,6 @@ import android.opengl.GLSurfaceView
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
-import android.view.GestureDetector
 import android.view.MotionEvent
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
