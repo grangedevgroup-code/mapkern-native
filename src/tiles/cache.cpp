@@ -162,14 +162,18 @@ std::string DiskCache::pathFor(const std::string& url) const {
 
 void DiskCache::load() {
   std::unordered_map<std::string, Row> found;
-  uint64_t total = 0;
   std::error_code ec;
   for (auto it = fs::recursive_directory_iterator(fsPath(dir_), ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
     {
       std::lock_guard lock(mutex_);
       if (stop_) return;
     }
-    if (!it->is_regular_file(ec) || it->path().extension() != ".mkc") continue;
+    std::error_code fileError;
+    if (!it->is_regular_file(fileError) || it->path().extension() != ".mkc") continue;
+    const uint64_t size = it->file_size(fileError);
+    if (fileError) continue;
+    const auto mtime = it->last_write_time(fileError);
+    if (fileError) continue;
     const auto u8 = it->path().u8string();
     std::FILE* f = openFile(std::string(u8.begin(), u8.end()), "rb");
     if (!f) continue;
