@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Mapkern.WinForms</RootNamespace>
+    <PackageId>Mapkern.Native.WinForms</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>grangedevgroup</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Mapkern/Mapkern.csproj" />
+  </ItemGroup>
+</Project>
