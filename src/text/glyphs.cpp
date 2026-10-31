@@ -118,6 +118,40 @@ LocalFonts::Face* LocalFonts::face(bool bold, bool italic) {
   return slot->ok ? slot.get() : nullptr;
 }
 
+bool LocalFonts::bitmap(bool bold, uint32_t codepoint, double pixels, std::vector<uint8_t>& out, int& width, int& height, int& left, int& top,
+                        double& advance, double& kernNext, uint32_t next) {
+  std::lock_guard lock(mutex_);
+  Face* f = face(bold, false);
+  if (!f) f = face(false, false);
+  if (!f) return false;
+  if (stbtt_FindGlyphIndex(&f->info, static_cast<int>(codepoint)) == 0 && codepoint > 0x20)
+    if (Face* other = fallback(codepoint)) f = other;
+  const float scale = stbtt_ScaleForMappingEmToPixels(&f->info, static_cast<float>(pixels));
+  int adv = 0, lsb = 0;
+  stbtt_GetCodepointHMetrics(&f->info, static_cast<int>(codepoint), &adv, &lsb);
+  advance = adv * scale;
+  kernNext = next ? stbtt_GetCodepointKernAdvance(&f->info, static_cast<int>(codepoint), static_cast<int>(next)) * scale : 0;
+  int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+  stbtt_GetCodepointBitmapBox(&f->info, static_cast<int>(codepoint), scale, scale, &x0, &y0, &x1, &y1);
+  width = std::max(0, x1 - x0);
+  height = std::max(0, y1 - y0);
+  left = x0;
+  top = y0;
+  out.assign(static_cast<size_t>(width) * height, 0);
+  if (width > 0 && height > 0) stbtt_MakeCodepointBitmap(&f->info, out.data(), width, height, width, scale, scale, static_cast<int>(codepoint));
+  return true;
+}
+
+double LocalFonts::ascent(bool bold, double pixels) {
+  std::lock_guard lock(mutex_);
+  Face* f = face(bold, false);
+  if (!f) f = face(false, false);
+  if (!f) return pixels * 0.8;
+  int a = 0, d = 0, g = 0;
+  stbtt_GetFontVMetrics(&f->info, &a, &d, &g);
+  return a * stbtt_ScaleForMappingEmToPixels(&f->info, static_cast<float>(pixels));
+}
+
 std::optional<std::vector<uint8_t>> LocalFonts::sdf(const FontSpec& font, uint32_t codepoint, double size, int& width, int& height,
                                                     double& left, double& top, double& advance) {
   std::lock_guard lock(mutex_);
