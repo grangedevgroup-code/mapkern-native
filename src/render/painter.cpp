@@ -477,8 +477,10 @@ void Painter::drawGlobe(const FrameInput& frame, const std::vector<CoveringTile>
       b.samplers[SMP_mk_drape_smp] = gpu.sampler(true);
       b.views[VIEW_mk_pole_tex] = poleTexture_;
       b.samplers[SMP_mk_pole_smp] = gpu.sampler(false);
-      b.views[VIEW_mk_dem_tex] = flatDem_.view;
+      b.views[VIEW_mk_dem_tex] = dem.dem;
       b.samplers[SMP_mk_dem_smp] = gpu.sampler(false);
+      b.views[VIEW_mk_gradient_tex] = dem.gradient;
+      b.samplers[SMP_mk_gradient_smp] = gpu.sampler(true);
       sg_apply_bindings(&b);
       mk_globe_vs_params_t vs{};
       copyMat(vs.u_matrix, mat4::toFloat(t.globeMatrix));
