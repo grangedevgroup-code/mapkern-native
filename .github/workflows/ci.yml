@@ -30,7 +30,7 @@ jobs:
           - name: macOS
             os: macos-15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install packages
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ninja-build libcurl4-openssl-dev libgl-dev libegl-dev libx11-dev libxi-dev libxcursor-dev xvfb mesa-utils
@@ -51,7 +51,7 @@ jobs:
     name: Android
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
