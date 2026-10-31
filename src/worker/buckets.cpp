@@ -88,7 +88,91 @@ std::vector<double> clipRing(const std::vector<double>& ring, double x0, double 
   return pts;
 }
 
-void FillBuilder::addPolygon(const std::vector<Ring>& rings, uint32_t feature) {
+bool outsideTile(const std::vector<Ring>& rings, int32_t extent) {
+  for (const auto& ring : rings)
+    for (int32_t v : ring)
+      if (v < 0 || v > extent) return true;
+  return false;
+}
+
+std::vector<LinePart> clipLine(const Ring& line, double x0, double y0, double x1, double y1) {
+  std::vector<LinePart> out;
+  LinePart current;
+  auto flush = [&] {
+    if (current.points.size() >= 4) out.push_back(std::move(current));
+    current = LinePart{};
+  };
+  auto clipSegment = [&](double ax, double ay, double bx, double by, double r[4], bool& entered, bool& exited) {
+    const double dx = bx - ax, dy = by - ay;
+    double t0 = 0, t1 = 1;
+    const double p[4] = {-dx, dx, -dy, dy};
+    const double q[4] = {ax - x0, x1 - ax, ay - y0, y1 - ay};
+    for (int i = 0; i < 4; i++) {
+      if (p[i] == 0) {
+        if (q[i] < 0) return false;
+      } else {
+        const double t = q[i] / p[i];
+        if (p[i] < 0) {
+          if (t > t1) return false;
+          if (t > t0) t0 = t;
+        } else {
+          if (t < t0) return false;
+          if (t < t1) t1 = t;
+        }
+      }
+    }
+    r[0] = ax + dx * t0;
+    r[1] = ay + dy * t0;
+    r[2] = ax + dx * t1;
+    r[3] = ay + dy * t1;
+    entered = t0 > 0;
+    exited = t1 < 1;
+    return true;
+  };
+  for (size_t i = 0; i + 3 < line.size(); i += 2) {
+    double seg[4];
+    bool entered = false, exited = false;
+    if (!clipSegment(line[i], line[i + 1], line[i + 2], line[i + 3], seg, entered, exited)) {
+      flush();
+      continue;
+    }
+    const int32_t ax = static_cast<int32_t>(jsRound(seg[0])), ay = static_cast<int32_t>(jsRound(seg[1]));
+    const int32_t bx = static_cast<int32_t>(jsRound(seg[2])), by = static_cast<int32_t>(jsRound(seg[3]));
+    const size_t n = current.points.size();
+    if (n == 0 || entered || current.points[n - 2] != ax || current.points[n - 1] != ay) {
+      flush();
+      current.points.push_back(ax);
+      current.points.push_back(ay);
+      current.startCut = entered;
+    }
+    current.points.push_back(bx);
+    current.points.push_back(by);
+    if (exited) {
+      current.endCut = true;
+      flush();
+    }
+  }
+  flush();
+  return out;
+}
+
+void FillBuilder::addPolygon(const std::vector<Ring>& input, uint32_t feature) {
+  std::vector<Ring> clippedRings;
+  const bool clip = extent_ > 0 && outsideTile(input, extent_);
+  if (clip) {
+    for (size_t r = 0; r < input.size(); r++) {
+      std::vector<double> d(input[r].begin(), input[r].end());
+      const auto c = clipRing(d, 0, 0, extent_, extent_);
+      Ring ring;
+      for (double v : c) ring.push_back(static_cast<int32_t>(jsRound(v)));
+      if (ring.size() < 8 || std::abs(ringArea(ring)) < 1) {
+        if (r == 0) return;
+        continue;
+      }
+      clippedRings.push_back(std::move(ring));
+    }
+  }
+  const std::vector<Ring>& rings = clip ? clippedRings : input;
   coords_.clear();
   holes_.clear();
   starts_.clear();
@@ -109,11 +193,19 @@ void FillBuilder::addPolygon(const std::vector<Ring>& rings, uint32_t feature) {
   }
   const uint32_t base = vertexCount;
   starts_.push_back(static_cast<uint32_t>(coords_.size() / 2));
+  const double e = extent_;
+  auto onBorder = [&](uint32_t a, uint32_t b) {
+    if (extent_ <= 0) return false;
+    const double ax = coords_[a * 2], ay = coords_[a * 2 + 1], bx = coords_[b * 2], by = coords_[b * 2 + 1];
+    return (ax <= 0 && bx <= 0) || (ax >= e && bx >= e) || (ay <= 0 && by <= 0) || (ay >= e && by >= e);
+  };
   for (size_t r = 0; r + 1 < starts_.size(); r++) {
     const uint32_t start = starts_[r], end = starts_[r + 1];
     for (uint32_t i = start; i < end; i++) {
+      const uint32_t j = i + 1 < end ? i + 1 : start;
+      if (onBorder(i, j)) continue;
       edges.push_back(base + i);
-      edges.push_back(base + (i + 1 < end ? i + 1 : start));
+      edges.push_back(base + j);
     }
   }
   const size_t count = coords_.size() / 2;
@@ -165,7 +257,26 @@ uint32_t LineBuilder::vertex(double x, double y, double ex, double ey, double sx
   return vertexCount++;
 }
 
-void LineBuilder::addLine(const Ring& points, uint32_t feature, bool closedHint) {
+void LineBuilder::addClipped(const Ring& points, uint32_t feature, bool closedHint, int32_t extent) {
+  bool outside = false;
+  for (int32_t v : points)
+    if (v < 0 || v > extent) {
+      outside = true;
+      break;
+    }
+  if (!outside) {
+    addLine(points, feature, closedHint);
+    return;
+  }
+  Ring loop = points;
+  if (closedHint && loop.size() >= 4 && (loop[0] != loop[loop.size() - 2] || loop[1] != loop[loop.size() - 1])) {
+    loop.push_back(loop[0]);
+    loop.push_back(loop[1]);
+  }
+  for (auto& part : clipLine(closedHint ? loop : points, 0, 0, extent, extent)) addLine(part.points, feature, false, part.startCut, part.endCut);
+}
+
+void LineBuilder::addLine(const Ring& points, uint32_t feature, bool closedHint, bool startCut, bool endCut) {
   pts_.clear();
   for (size_t i = 0; i + 1 < points.size(); i += 2) {
     const double x = points[i], y = points[i + 1];
@@ -215,7 +326,7 @@ void LineBuilder::addLine(const Ring& points, uint32_t feature, bool closedHint)
       else jointShift(s == 0 ? segments - 1 : s - 1, s);
       startL = vertex(ax, ay, nx, ny, 0, 1, false, d0, feature);
       startR = vertex(ax, ay, -nx, -ny, 0, -1, false, d0, feature);
-      if (s == 0 && !closed) cap(ax, ay, -dx, -dy, d0, feature);
+      if (s == 0 && !closed && !startCut) cap(ax, ay, -dx, -dy, d0, feature);
     }
     const bool last = s == segments - 1;
     const bool hasJoin = closed || !last;
@@ -239,7 +350,7 @@ void LineBuilder::addLine(const Ring& points, uint32_t feature, bool closedHint)
       endR = vertex(bx, by, -nx, -ny, 0, -1, false, d1, feature);
       pairL = pairR = -1;
       if (hasJoin) join(bx, by, dx, dy, dirs_[next * 2], dirs_[next * 2 + 1], d1, feature);
-      else if (!closed) cap(bx, by, dx, dy, d1, feature);
+      else if (!closed && !endCut) cap(bx, by, dx, dy, d1, feature);
     }
     tri(static_cast<uint32_t>(startL), static_cast<uint32_t>(startR), static_cast<uint32_t>(endL));
     tri(static_cast<uint32_t>(startR), static_cast<uint32_t>(endR), static_cast<uint32_t>(endL));
