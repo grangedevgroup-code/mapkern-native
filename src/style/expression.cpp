@@ -337,23 +337,39 @@ Area withinArea(const Value& value, const std::string& path) {
   return area;
 }
 
-std::string groupDigits(const std::string& digits) {
-  std::string out;
-  const size_t n = digits.size();
-  for (size_t i = 0; i < n; i++) {
-    out += digits[i];
-    const size_t left = n - 1 - i;
-    if (left > 0 && left % 3 == 0) out += ',';
-  }
-  return out;
+struct NumberLocale {
+  std::string group = ",";
+  std::string decimal = ".";
+  bool symbolAfter = false;
+};
+
+NumberLocale numberLocale(const std::string& tag) {
+  const std::string lang = tag.substr(0, tag.find_first_of("-_"));
+  NumberLocale l;
+  static const char* dotGroup[] = {"de", "es", "it", "nl", "pt", "id", "da", "tr", "el", "ro", "hr", "sl", "vi"};
+  static const char* spaceGroup[] = {"fr", "ru", "pl", "cs", "sv", "fi", "nb", "no", "uk", "sk", "hu", "bg", "lt", "lv", "et"};
+  for (const char* d : dotGroup)
+    if (lang == d) {
+      l.group = ".";
+      l.decimal = ",";
+      l.symbolAfter = true;
+    }
+  for (const char* d : spaceGroup)
+    if (lang == d) {
+      l.group = "\xe2\x80\xaf";
+      l.decimal = ",";
+      l.symbolAfter = true;
+    }
+  if (tag == "pt-BR") l.symbolAfter = false;
+  return l;
 }
 
-std::string formatFixed(double v, int minDigits, int maxDigits) {
+std::string formatFixed(double v, int minDigits, int maxDigits, const NumberLocale& locale) {
   const bool negative = v < 0;
   v = std::abs(v);
   const double scale = std::pow(10.0, maxDigits);
-  double rounded = std::floor(v * scale + 0.5) / scale;
-  char buf[64];
+  const double rounded = std::floor(v * scale + 0.5) / scale;
+  char buf[400];
   std::snprintf(buf, sizeof buf, "%.*f", maxDigits, rounded);
   std::string s = buf;
   std::string intPart = s, frac;
@@ -362,8 +378,15 @@ std::string formatFixed(double v, int minDigits, int maxDigits) {
     frac = s.substr(dot + 1);
   }
   while (static_cast<int>(frac.size()) > minDigits && !frac.empty() && frac.back() == '0') frac.pop_back();
-  std::string out = (negative && rounded != 0 ? "-" : "") + groupDigits(intPart);
-  if (!frac.empty()) out += "." + frac;
+  std::string grouped;
+  const size_t n = intPart.size();
+  for (size_t i = 0; i < n; i++) {
+    grouped += intPart[i];
+    const size_t left = n - 1 - i;
+    if (left > 0 && left % 3 == 0) grouped += locale.group;
+  }
+  std::string out = (negative && rounded != 0 ? "-" : "") + grouped;
+  if (!frac.empty()) out += locale.decimal + frac;
   return out;
 }
 
@@ -375,16 +398,6 @@ std::string matchKey(const Value& v) {
 }
 
 Node build(const Value& value, Scope& scope);
-
-Node combine(const std::vector<Node*>& nodes, EvalFn fn) {
-  Node out{std::move(fn), false, false, false};
-  for (const Node* n : nodes) {
-    out.zoom = out.zoom || n->zoom;
-    out.feature = out.feature || n->feature;
-    out.state = out.state || n->state;
-  }
-  return out;
-}
 
 using Nodes = std::vector<std::shared_ptr<Node>>;
 
@@ -858,23 +871,26 @@ Node build(const Value& value, Scope& scope) {
     int mn = hasMin ? static_cast<int>(o["min-fraction-digits"].asNumber()) : (currency.empty() ? 0 : 2);
     int mx = hasMax ? std::max(static_cast<int>(o["max-fraction-digits"].asNumber()), mn) : (currency.empty() ? std::max(3, mn) : std::max(2, mn));
     if (mn < 0 || mn > 20 || mx < 0 || mx > 20) throw ExpressionError(scope.path + ": \"number-format\" options are not valid");
-    std::string prefix;
+    std::string symbol;
     if (!currency.empty()) {
-      if (currency == "USD") prefix = "$";
-      else if (currency == "EUR") prefix = "\xe2\x82\xac";
-      else if (currency == "GBP") prefix = "\xc2\xa3";
-      else if (currency == "JPY") prefix = "\xc2\xa5";
-      else prefix = currency + "\xc2\xa0";
+      if (currency == "USD") symbol = "$";
+      else if (currency == "EUR") symbol = "\xe2\x82\xac";
+      else if (currency == "GBP") symbol = "\xc2\xa3";
+      else if (currency == "JPY") symbol = "\xc2\xa5";
+      else symbol = currency;
     }
-    return combineAll({v}, [v, mn, mx, prefix](const EvalContext& ctx) -> Value {
+    const NumberLocale locale = numberLocale(o["locale"].stringOr("en-US"));
+    return combineAll({v}, [v, mn, mx, symbol, locale](const EvalContext& ctx) -> Value {
       const Value x = v->fn(ctx);
       if (!x.isNumber()) return {};
-      std::string s = formatFixed(x.asNumber(), mn, mx);
-      if (!prefix.empty()) {
-        if (!s.empty() && s[0] == '-') return "-" + prefix + s.substr(1);
-        return prefix + s;
-      }
-      return s;
+      std::string s = formatFixed(x.asNumber(), mn, mx, locale);
+      if (symbol.empty()) return s;
+      const bool negative = !s.empty() && s[0] == '-';
+      if (negative) s = s.substr(1);
+      std::string out;
+      if (locale.symbolAfter) out = s + "\xc2\xa0" + symbol;
+      else out = symbol.size() == 3 && symbol[0] >= 'A' && symbol[0] <= 'Z' ? symbol + "\xc2\xa0" + s : symbol + s;
+      return negative ? "-" + out : out;
     });
   }
   if (op == "hsl" || op == "hsla") {
