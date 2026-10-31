@@ -97,6 +97,7 @@ std::optional<Image> decodeImage(const Bytes& data, bool premultiply, std::strin
     image.rgba = std::move(callbacks.pixels);
   }
   if (premultiply) premultiplyAlpha(image);
+  diag::stage(diag::Stage::Image, diag::steadyMs() - started, data.size());
   return image;
 }
 
