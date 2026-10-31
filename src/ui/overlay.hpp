@@ -81,6 +81,7 @@ class Overlay {
   std::map<std::string, Cached> cache_;
   OverlayState state_;
   bool menu_ = false;
+  bool credits_ = false;
   std::string pending_;
   std::map<int, std::pair<std::string, size_t>> pressed_;
 };
