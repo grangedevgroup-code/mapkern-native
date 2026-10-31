@@ -12,7 +12,7 @@ namespace {
 
 size_t demBytes(const DemTileData& d) {
   const size_t size = static_cast<size_t>(d.grid.size);
-  size_t cpu = d.grid.elevation.size() * 4 + d.grid.mask.size() + d.gradient.size() * 4;
+  size_t cpu = d.grid.elevation.size() * 4 + d.grid.mask.size() + d.gradient.size() * 2;
   size_t gpu = (d.gradientTexture.valid() ? (size + 2) * (size + 2) * 4 : 0) + (d.maskTexture.valid() ? size * size : 0) +
                (d.elevationTexture.valid() ? d.grid.elevation.size() * 4 : 0);
   return cpu + gpu;
@@ -96,12 +96,11 @@ class DemTileLoader : public TileLoader<DemTileData> {
     if (*alive_) owner_->stitch(data);
     writeFrame(data.grid, data.gradient);
     const int n = data.grid.size + 2;
-    const auto halfs = toHalf(data.gradient);
-    data.gradientTexture = Gpu::get().texture(n, n, SG_PIXELFORMAT_RG16F, halfs.data(), halfs.size() * 2);
+    data.gradientTexture = Gpu::get().texture(n, n, SG_PIXELFORMAT_RG16F, data.gradient.data(), data.gradient.size() * 2);
     if (!data.grid.mask.empty())
       data.maskTexture = Gpu::get().texture(data.grid.size, data.grid.size, SG_PIXELFORMAT_R8, data.grid.mask.data(), data.grid.mask.size());
     data.gradientDirty = false;
-    data.elevationDirty = true;
+    data.elevationDirty = false;
   }
 
   void release(DemTileData& data) override {
@@ -192,35 +191,53 @@ void DemSource::stitch(DemTileData& data) {
     DemTileData& other = *tile->data;
     if (&other == &data || !backfill(data.grid, other.grid, dx, dy)) continue;
     backfill(other.grid, data.grid, -dx, -dy);
-    other.elevationDirty = true;
     if (!other.gradient.empty()) writeFrame(other.grid, other.gradient);
-    other.gradientDirty = true;
+    const bool queued = other.elevationDirty || other.gradientDirty;
+    other.elevationDirty = other.elevationTexture.valid();
+    other.gradientDirty = other.gradientTexture.valid();
+    if (!queued && (other.elevationDirty || other.gradientDirty)) stale_.push_back({other.z, other.x, other.y});
   }
 }
 
-const GpuTexture* DemSource::elevationTexture(DemTileData& data) {
-  const int stride = data.grid.stride;
-  if (!data.elevationTexture.valid() || data.elevationDirty) {
+void DemSource::resize(DemTileData& data) {
+  if (!manager) return;
+  if (auto tile = manager->getTile(data.z, data.x, data.y); tile && tile->data.get() == &data) tile->bytes = demBytes(data);
+}
+
+bool DemSource::refresh(DemTileData& data) {
+  bool uploaded = false;
+  if (data.elevationDirty && data.elevationTexture.valid()) {
+    const int stride = data.grid.stride;
     data.elevationTexture.release();
     data.elevationTexture = Gpu::get().texture(stride, stride, SG_PIXELFORMAT_R32F, data.grid.elevation.data(), data.grid.elevation.size() * 4);
+    uploaded = true;
+  }
+  if (data.gradientDirty && data.gradientTexture.valid()) {
+    const int n = data.grid.size + 2;
+    data.gradientTexture.release();
+    data.gradientTexture = Gpu::get().texture(n, n, SG_PIXELFORMAT_RG16F, data.gradient.data(), data.gradient.size() * 2);
+    uploaded = true;
+  }
+  data.elevationDirty = false;
+  data.gradientDirty = false;
+  if (uploaded) {
+    data.version++;
+    resize(data);
+  }
+  return uploaded;
+}
+
+const GpuTexture* DemSource::elevationTexture(DemTileData& data) {
+  if (!data.elevationTexture.valid()) {
+    const int stride = data.grid.stride;
+    data.elevationTexture = Gpu::get().texture(stride, stride, SG_PIXELFORMAT_R32F, data.grid.elevation.data(), data.grid.elevation.size() * 4);
     data.elevationDirty = false;
-    if (manager)
-      if (auto tile = manager->getTile(data.z, data.x, data.y); tile && tile->data.get() == &data) tile->bytes = demBytes(data);
+    resize(data);
   }
   return &data.elevationTexture;
 }
 
-const GpuTexture* DemSource::gradientTexture(DemTileData& data) {
-  if (!data.gradientTexture.valid()) return nullptr;
-  if (data.gradientDirty) {
-    const int n = data.grid.size + 2;
-    const auto halfs = toHalf(data.gradient);
-    data.gradientTexture.release();
-    data.gradientTexture = Gpu::get().texture(n, n, SG_PIXELFORMAT_RG16F, halfs.data(), halfs.size() * 2);
-    data.gradientDirty = false;
-  }
-  return &data.gradientTexture;
-}
+const GpuTexture* DemSource::gradientTexture(DemTileData& data) { return data.gradientTexture.valid() ? &data.gradientTexture : nullptr; }
 
 std::optional<double> DemSource::elevationAt(double wx, double wy) const {
   if (!manager) return std::nullopt;
@@ -240,9 +257,21 @@ void DemSource::update(Transform& transform, double now, const std::vector<Trans
   if (manager) manager->update(transform, now, predicted);
 }
 
-bool DemSource::uploadPending(double deadline, double now) { return manager ? manager->uploadPending(deadline, now) : false; }
+bool DemSource::uploadPending(UploadBudget& budget, double now) {
+  if (!manager) return false;
+  const bool more = manager->uploadPending(budget, now);
+  size_t done = 0;
+  for (; done < stale_.size(); done++) {
+    if (budget.spent()) break;
+    const TileId at = stale_[done];
+    auto tile = manager->getTile(at.z, at.x, at.y);
+    if (tile && tile->data && refresh(*tile->data)) budget.used = true;
+  }
+  stale_.erase(stale_.begin(), stale_.begin() + static_cast<std::ptrdiff_t>(done));
+  return more || !stale_.empty();
+}
 
-bool DemSource::isIdle() const { return manager && manager->isLoaded() && !manager->hasPendingUploads(); }
+bool DemSource::isIdle() const { return manager && manager->isLoaded() && !manager->hasPendingUploads() && stale_.empty(); }
 
 std::optional<TileStats> DemSource::stats() const {
   if (!manager) return std::nullopt;
