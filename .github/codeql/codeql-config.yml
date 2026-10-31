@@ -1,0 +1,8 @@
+name: mapkern-native
+queries:
+  - uses: security-and-quality
+query-filters:
+  - exclude:
+      id: cpp/poorly-documented-function
+  - exclude:
+      id: cpp/commented-out-code
