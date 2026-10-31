@@ -132,7 +132,8 @@ class Tess {
   }
 
   void clip(Vertex* start, const Grid* grid, int pass) {
-    if (++depth_ > 4096) return;
+    if (depth_ > 4096) return;
+    depth_++;
     Vertex* ear = start;
     if (grid && pass == 0) index(ear, *grid);
     Vertex* stop = ear;
