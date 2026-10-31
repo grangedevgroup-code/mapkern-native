@@ -72,7 +72,7 @@ TEST("style: legacy filters convert to expressions") {
   EXPECT(convertFilter(J(R"(["in","class","a","b"])")) == J(R"(["match",["get","class"],["a","b"],true,false])"));
   EXPECT(convertFilter(J(R"(["==","$type","Polygon"])")) == J(R"(["==",["geometry-type"],"Polygon"])"));
   EXPECT(convertFilter(J(R"(["!has","name"])")) == J(R"(["!",["has","name"]])"));
-  EXPECT(tokens("{name} ({ref})") == J(R"(["concat",["to-string",["get","name"]]," (",["to-string",["get","ref"]],")"])"));
+  EXPECT(tokens("{name} ({ref})") == J(R"j(["concat",["to-string",["get","name"]]," (",["to-string",["get","ref"]],")"])j"));
 }
 
 TEST("style: font names split into families, weight and slant") {
