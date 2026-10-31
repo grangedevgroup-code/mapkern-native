@@ -187,11 +187,17 @@ bool backfill(DemGrid& target, const DemGrid& source, int dx, int dy) {
   return true;
 }
 
-std::vector<float> gradients(const DemGrid& grid) {
+std::vector<uint16_t> gradients(const DemGrid& grid) {
   const int n = grid.size + 2;
-  std::vector<float> out(static_cast<size_t>(n) * n * 2);
+  std::vector<uint16_t> out(static_cast<size_t>(n) * n * 2);
+  float g[2];
   for (int j = 0; j < n; j++)
-    for (int i = 0; i < n; i++) horn(grid, i, j, &out[(static_cast<size_t>(j) * n + i) * 2]);
+    for (int i = 0; i < n; i++) {
+      horn(grid, i, j, g);
+      const size_t o = (static_cast<size_t>(j) * n + i) * 2;
+      out[o] = half(g[0]);
+      out[o + 1] = half(g[1]);
+    }
   return out;
 }
 
@@ -206,11 +212,14 @@ std::vector<FrameStrip> frameStrips(const DemGrid& grid) {
   return {strip(0, 0, n, 2), strip(0, n - 2, n, 2), strip(0, 2, 2, n - 4), strip(n - 2, 2, 2, n - 4)};
 }
 
-void writeFrame(const DemGrid& grid, std::vector<float>& out) {
+void writeFrame(const DemGrid& grid, std::vector<uint16_t>& out) {
   const int n = grid.size + 2;
   for (const auto& s : frameStrips(grid))
-    for (int j = 0; j < s.height; j++)
-      std::memcpy(&out[(static_cast<size_t>(s.y + j) * n + s.x) * 2], &s.data[static_cast<size_t>(j) * s.width * 2], sizeof(float) * s.width * 2);
+    for (int j = 0; j < s.height; j++) {
+      uint16_t* row = &out[(static_cast<size_t>(s.y + j) * n + s.x) * 2];
+      const float* from = &s.data[static_cast<size_t>(j) * s.width * 2];
+      for (int k = 0; k < s.width * 2; k++) row[k] = half(from[k]);
+    }
 }
 
 std::optional<double> sampleElevation(const DemGrid& grid, double u, double v) {
@@ -236,6 +245,33 @@ std::vector<uint16_t> toHalf(const std::vector<float>& values) {
   std::vector<uint16_t> out(values.size());
   for (size_t i = 0; i < values.size(); i++) out[i] = half(values[i]);
   return out;
+}
+
+float fromHalf(uint16_t h) {
+  const uint32_t sign = static_cast<uint32_t>(h & 0x8000) << 16;
+  const uint32_t exp = (h >> 10) & 0x1f;
+  const uint32_t mant = h & 0x3ff;
+  uint32_t bits;
+  if (exp == 0) {
+    if (mant == 0) {
+      bits = sign;
+    } else {
+      int e = -1;
+      uint32_t m = mant;
+      do {
+        e++;
+        m <<= 1;
+      } while ((m & 0x400) == 0);
+      bits = sign | (static_cast<uint32_t>(127 - 15 - e) << 23) | ((m & 0x3ff) << 13);
+    }
+  } else if (exp == 0x1f) {
+    bits = sign | 0x7f800000 | (mant << 13);
+  } else {
+    bits = sign | ((exp + 127 - 15) << 23) | (mant << 13);
+  }
+  float f;
+  std::memcpy(&f, &bits, 4);
+  return f;
 }
 
 bool isRawElevation(const uint8_t* b, size_t size) { return size >= 8 && b[0] == 0x4d && b[1] == 0x4b && b[2] == 0x45 && b[3] == 0x4c; }
