@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <string>
 #include <thread>
+#include <array>
 #include <vector>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -27,6 +28,7 @@ struct Args {
   double settleMs = 400;
   double terrain = 0;
   bool hillshade = false;
+  std::vector<std::array<double, 2>> taps;
 };
 
 const char* kDem = R"j({"type":"dem","tiles":["https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"],"tileSize":512,"maxZoom":12,"encoding":"terrarium","attribution":"Mapterhorn"})j";
@@ -58,6 +60,14 @@ int main(int argc, char** argv) {
     else if (s == "--timeout") a.timeoutMs = num(argc, argv, i);
     else if (s == "--terrain") a.terrain = num(argc, argv, i);
     else if (s == "--hillshade") a.hillshade = true;
+    else if (s == "--controls") a.options.controls = true;
+    else if (s == "--tap") {
+      const double x = num(argc, argv, i);
+      const double y = num(argc, argv, i);
+      a.taps.push_back({x, y});
+    }
+    else if (s == "--mouse") a.options.touchControls = false;
+    else if (s == "--view" && i + 1 < argc) a.options.view = argv[++i];
   }
   a.options.pixelRatio = a.ratio;
   const int pw = static_cast<int>(a.width * a.ratio), ph = static_cast<int>(a.height * a.ratio);
@@ -141,7 +151,14 @@ int main(int argc, char** argv) {
     for (const auto& [id, s] : impl.sources) sourcesReady = sourcesReady && s->loaded() && s->isIdle();
     if (idle && sourcesReady) {
       if (idleSince == 0) idleSince = now;
-      if (now - idleSince > a.settleMs) break;
+      if (now - idleSince > a.settleMs) {
+        if (a.taps.empty()) break;
+        const auto tap = a.taps.front();
+        a.taps.erase(a.taps.begin());
+        map.pointerDown(0, tap[0], tap[1]);
+        map.pointerUp(0, tap[0], tap[1]);
+        idleSince = 0;
+      }
     } else {
       idleSince = 0;
     }
