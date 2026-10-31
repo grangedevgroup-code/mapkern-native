@@ -15,6 +15,7 @@
 #include "render/gpu.hpp"
 #include "render/paint_table.hpp"
 #include "style/layer.hpp"
+#include "text/labels.hpp"
 
 namespace mapkern {
 
@@ -74,6 +75,8 @@ class Painter {
   bool render(const FrameInput& frame, const FrameTarget& target);
   const PaintStats& stats() const { return stats_; }
   bool drapesBehind() const { return drapesBehind_; }
+  bool labelsAnimating() const { return labelsAnimating_; }
+  LabelRenderer& labels() { return labels_; }
 
  private:
   void drawLayer(const FrameInput& frame, const StyleLayer& layer);
@@ -97,6 +100,11 @@ class Painter {
   std::pair<const DrapeEntry*, std::array<float, 4>> slotDrape(const CoveringTile& slot);
   void ensureMeshes();
 
+  void drawLabels(const FrameInput& frame);
+  LabelRenderer labels_;
+  bool labelsAnimating_ = false;
+  uint64_t cameraVersion_ = 0;
+  std::array<double, 8> lastCamera_{};
   PassFormat format_;
   PaintStats stats_;
   std::unordered_map<uint64_t, DrapeEntry> drapes_;
