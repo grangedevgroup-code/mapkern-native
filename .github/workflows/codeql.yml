@@ -6,14 +6,19 @@ on:
   pull_request:
   schedule:
     - cron: "17 4 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze ${{ matrix.language }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
     permissions:
       security-events: write
       contents: read
@@ -24,29 +29,68 @@ jobs:
         include:
           - language: c-cpp
             build-mode: manual
+            os: ubuntu-24.04
+          - language: csharp
+            build-mode: manual
+            os: windows-2025
+          - language: java-kotlin
+            build-mode: manual
+            os: ubuntu-24.04
+          - language: swift
+            build-mode: manual
+            os: macos-15
           - language: actions
             build-mode: none
+            os: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: github/codeql-action/init@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        if: matrix.language == 'csharp'
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        if: matrix.language == 'java-kotlin'
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        if: matrix.language == 'java-kotlin'
+      - name: Build XCFramework
+        if: matrix.language == 'swift'
+        run: brew install ninja && sh platform/apple/build-xcframework.sh
+      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           config-file: ./.github/codeql/codeql-config.yml
-      - name: Build
-        if: matrix.build-mode == 'manual'
+      - name: Build C and C++
+        if: matrix.language == 'c-cpp'
         run: |
           sudo apt-get update && sudo apt-get install -y ninja-build libcurl4-openssl-dev libgl-dev libegl-dev libx11-dev libxi-dev libxcursor-dev
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build
-      - uses: github/codeql-action/analyze@v4
+      - name: Build C#
+        if: matrix.language == 'csharp'
+        run: dotnet build platform/dotnet/Demo/Demo.csproj -c Release -p:Platform=AnyCPU -p:UseSharedCompilation=false
+      - name: Build Kotlin
+        if: matrix.language == 'java-kotlin'
+        working-directory: platform/android
+        run: ./gradlew --no-daemon --no-build-cache -Pkotlin.compiler.execution.strategy=in-process :mapkern:compileReleaseKotlin :demo:compileReleaseKotlin
+      - name: Build Swift
+        if: matrix.language == 'swift'
+        working-directory: platform/apple
+        run: swift build
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           category: /language:${{ matrix.language }}
           upload: failure-only
           output: sarif
       - name: Collect results
+        shell: bash
         run: f=$(ls sarif/*.sarif | head -1) && mv "$f" sarif/results.sarif
-      - uses: advanced-security/filter-sarif@2da736ff05ef065cb2894ac6892e47b5eac2c3c0
+      - uses: advanced-security/filter-sarif@2da736ff05ef065cb2894ac6892e47b5eac2c3c0 # v1.1
         with:
           patterns: |
             -build/**
@@ -56,7 +100,7 @@ jobs:
             -test/**:cpp/unused-static-function
           input: sarif/results.sarif
           output: sarif/results.sarif
-      - uses: github/codeql-action/upload-sarif@v4
+      - uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: sarif/results.sarif
           category: /language:${{ matrix.language }}
