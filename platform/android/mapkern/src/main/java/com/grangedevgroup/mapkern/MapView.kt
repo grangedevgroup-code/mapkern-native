@@ -164,6 +164,10 @@ class MapView @JvmOverloads constructor(
     private external fun nativeSetProjection(handle: Long, globe: Boolean)
     private external fun nativeSetOffline(handle: Long, offline: Boolean)
     private external fun nativeCamera(handle: Long): DoubleArray
+    private external fun nativeDiagnostics(handle: Long): ByteArray
+    private external fun nativeGlInfo(): ByteArray
+    private external fun nativeSetGpuTiming(handle: Long, enabled: Boolean)
+    private external fun nativeSetHud(handle: Long, text: String)
 
     companion object {
         @JvmStatic private external fun nativeSetReachable(reachable: Boolean)
