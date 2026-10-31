@@ -167,6 +167,8 @@ public partial class MapControl : Control
         base.WndProc(ref m);
     }
 
-    [DllImport("user32.dll")]
-    private static extern bool GetPointerType(uint pointerId, out int pointerType);
+    [LibraryImport("user32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetPointerType(uint pointerId, out int pointerType);
 }
