@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -50,6 +51,8 @@ class MemorySource : public ByteSource {
   SharedBytes data_;
   std::string name_;
 };
+
+inline std::filesystem::path fsPath(const std::string& s) { return std::filesystem::path(std::u8string(s.begin(), s.end())); }
 
 std::FILE* openFile(const std::string& path, const char* mode);
 std::optional<Bytes> readFile(const std::string& path);
