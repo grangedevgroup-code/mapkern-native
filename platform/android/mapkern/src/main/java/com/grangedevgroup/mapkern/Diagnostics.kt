@@ -169,7 +169,8 @@ class Diagnostics(context: Context, private val map: MapView, private val option
     }
 
     private fun event(name: String, data: JSONObject) {
-        line(JSONObject().put("t", System.currentTimeMillis()).put("event", name).put("data", data))
+        val json = JSONObject().put("t", System.currentTimeMillis()).put("event", name).put("data", data)
+        if (Thread.currentThread() === thread) line(json) else handler.post { line(json) }
     }
 
     private fun line(json: JSONObject) {
