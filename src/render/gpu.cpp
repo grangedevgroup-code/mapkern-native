@@ -1,7 +1,9 @@
 #include "render/gpu.hpp"
 
+#include <algorithm>
 #include <cstring>
 
+#include "diag/diagnostics.hpp"
 #include "render/shaders/map.glsl.h"
 
 namespace mapkern {
@@ -20,6 +22,25 @@ void GpuTexture::release() {
   view = {};
   image = {};
   bytes = 0;
+}
+
+const char* pixelFormatName(sg_pixel_format format) {
+  switch (format) {
+    case SG_PIXELFORMAT_R8:
+      return "r8";
+    case SG_PIXELFORMAT_RGBA8:
+      return "rgba8";
+    case SG_PIXELFORMAT_RG16F:
+      return "rg16f";
+    case SG_PIXELFORMAT_R32F:
+      return "r32f";
+    case SG_PIXELFORMAT_RGBA32F:
+      return "rgba32f";
+    case _SG_PIXELFORMAT_DEFAULT:
+      return "";
+    default:
+      return "other";
+  }
 }
 
 Gpu& Gpu::get() {
@@ -112,18 +133,21 @@ sg_sampler Gpu::sampler(bool linear, bool mipmap, bool repeat) {
 GpuBuffer Gpu::vertexBuffer(const void* data, size_t bytes, const char* label) {
   GpuBuffer b;
   if (bytes == 0) return b;
+  const double started = diag::steadyMs();
   sg_buffer_desc d{};
   d.data = {data, bytes};
   d.label = label;
   b.buffer = sg_make_buffer(&d);
   b.bytes = bytes;
   uploaded_ += bytes;
+  diag::stage(diag::Stage::Buffer, diag::steadyMs() - started, bytes);
   return b;
 }
 
 GpuBuffer Gpu::indexBuffer(const void* data, size_t bytes, const char* label) {
   GpuBuffer b;
   if (bytes == 0) return b;
+  const double started = diag::steadyMs();
   sg_buffer_desc d{};
   d.usage.index_buffer = true;
   d.usage.vertex_buffer = false;
@@ -132,55 +156,48 @@ GpuBuffer Gpu::indexBuffer(const void* data, size_t bytes, const char* label) {
   b.buffer = sg_make_buffer(&d);
   b.bytes = bytes;
   uploaded_ += bytes;
+  diag::stage(diag::Stage::Buffer, diag::steadyMs() - started, bytes);
   return b;
 }
 
-GpuTexture Gpu::texture(int width, int height, sg_pixel_format format, const void* pixels, size_t bytes, bool mipmaps) {
+GpuTexture Gpu::make(sg_image_desc& d, size_t bytes) {
+  const double started = diag::steadyMs();
   GpuTexture t;
+  t.image = sg_make_image(&d);
+  sg_view_desc v{};
+  v.texture.image = t.image;
+  t.view = sg_make_view(&v);
+  t.width = d.width;
+  t.height = d.height;
+  t.bytes = bytes ? bytes : static_cast<size_t>(d.width) * d.height * 4;
+  uploaded_ += t.bytes;
+  const double ms = diag::steadyMs() - started;
+  diag::stage(diag::Stage::Texture, ms, t.bytes);
+  if (ms > slowest_.ms) slowest_ = {ms, d.width, d.height, d.num_mipmaps > 0 ? d.num_mipmaps : 1, d.pixel_format};
+  return t;
+}
+
+GpuTexture Gpu::texture(int width, int height, sg_pixel_format format, const void* pixels, size_t bytes, bool mipmaps) {
+  if (mipmaps && pixels && format == SG_PIXELFORMAT_RGBA8)
+    return mipmappedTexture(width, height, pixels, bytes, mipChain(static_cast<const uint8_t*>(pixels), width, height, SG_MAX_MIPMAPS));
   sg_image_desc d{};
   d.width = width;
   d.height = height;
   d.pixel_format = format;
-  if (mipmaps && pixels && format == SG_PIXELFORMAT_RGBA8) {
-    int levels = 1;
-    for (int w = width, h = height; (w > 1 || h > 1) && levels < SG_MAX_MIPMAPS; levels++) {
-      w = w > 1 ? w / 2 : 1;
-      h = h > 1 ? h / 2 : 1;
-    }
-    std::vector<std::vector<uint8_t>> chain;
-    chain.emplace_back(static_cast<const uint8_t*>(pixels), static_cast<const uint8_t*>(pixels) + bytes);
-    int w = width, h = height;
-    for (int l = 1; l < levels; l++) {
-      const int nw = w > 1 ? w / 2 : 1, nh = h > 1 ? h / 2 : 1;
-      const auto& prev = chain.back();
-      std::vector<uint8_t> next(static_cast<size_t>(nw) * nh * 4);
-      for (int y = 0; y < nh; y++)
-        for (int x = 0; x < nw; x++)
-          for (int c = 0; c < 4; c++) {
-            const int x0 = std::min(x * 2, w - 1), x1 = std::min(x * 2 + 1, w - 1);
-            const int y0 = std::min(y * 2, h - 1), y1 = std::min(y * 2 + 1, h - 1);
-            const int sum = prev[(y0 * w + x0) * 4 + c] + prev[(y0 * w + x1) * 4 + c] + prev[(y1 * w + x0) * 4 + c] + prev[(y1 * w + x1) * 4 + c];
-            next[(y * nw + x) * 4 + c] = static_cast<uint8_t>((sum + 2) / 4);
-          }
-      chain.push_back(std::move(next));
-      w = nw;
-      h = nh;
-    }
-    d.num_mipmaps = levels;
-    for (int l = 0; l < levels; l++) d.data.mip_levels[l] = {chain[l].data(), chain[l].size()};
-    t.image = sg_make_image(&d);
-  } else {
-    d.data.mip_levels[0] = {pixels, bytes};
-    t.image = sg_make_image(&d);
-  }
-  sg_view_desc v{};
-  v.texture.image = t.image;
-  t.view = sg_make_view(&v);
-  t.width = width;
-  t.height = height;
-  t.bytes = bytes ? bytes : static_cast<size_t>(width) * height * 4;
-  uploaded_ += t.bytes;
-  return t;
+  d.data.mip_levels[0] = {pixels, bytes};
+  return make(d, bytes);
+}
+
+GpuTexture Gpu::mipmappedTexture(int width, int height, const void* pixels, size_t bytes, const MipChain& below) {
+  sg_image_desc d{};
+  d.width = width;
+  d.height = height;
+  d.pixel_format = SG_PIXELFORMAT_RGBA8;
+  const size_t levels = std::min<size_t>(below.size() + 1, SG_MAX_MIPMAPS);
+  d.num_mipmaps = static_cast<int>(levels);
+  d.data.mip_levels[0] = {pixels, bytes};
+  for (size_t l = 1; l < levels; l++) d.data.mip_levels[l] = {below[l - 1].data(), below[l - 1].size()};
+  return make(d, bytes);
 }
 
 GpuTexture Gpu::floatTexture(int width, int height, const float* rgba) {
