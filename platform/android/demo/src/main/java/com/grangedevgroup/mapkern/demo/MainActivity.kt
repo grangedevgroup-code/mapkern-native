@@ -6,15 +6,20 @@ import android.os.Build
 import android.os.Bundle
 import android.view.WindowInsets
 import android.widget.FrameLayout
+import com.grangedevgroup.mapkern.Diagnostics
+import com.grangedevgroup.mapkern.DiagnosticsOptions
 import com.grangedevgroup.mapkern.MapOptions
 import com.grangedevgroup.mapkern.MapView
 
 class MainActivity : Activity() {
     private lateinit var map: MapView
+    private lateinit var diagnostics: Diagnostics
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        map = MapView(this, options = MapOptions(longitude = -122.33, latitude = 47.61, zoom = 2.5, controls = true))
+        val extras = intent.extras
+        fun number(key: String) = extras?.getString(key)?.toDoubleOrNull()
+        map = MapView(this, options = MapOptions(longitude = number("lng") ?: 0.0, latitude = number("lat") ?: 0.0, zoom = number("zoom") ?: 0.0, controls = true))
         val frame = FrameLayout(this)
         frame.setBackgroundColor(Color.rgb(17, 25, 31))
         frame.addView(map, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
@@ -26,19 +31,26 @@ class MainActivity : Activity() {
             }
         }
         setContentView(frame)
+        diagnostics = Diagnostics(this, map, DiagnosticsOptions(hud = extras?.getBoolean("hud", false) == true))
+        diagnostics.start()
+        extras?.getString("view")?.let { map.setView(it) }
+        extras?.getString("basemap")?.toIntOrNull()?.let { map.selectBasemap(it) }
     }
 
     override fun onResume() {
         super.onResume()
         map.onResume()
+        diagnostics.setForeground(true)
     }
 
     override fun onPause() {
+        diagnostics.setForeground(false)
         map.onPause()
         super.onPause()
     }
 
     override fun onDestroy() {
+        diagnostics.stop()
         map.destroy()
         super.onDestroy()
     }
