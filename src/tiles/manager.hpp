@@ -119,9 +119,9 @@ inline constexpr double kSpeculative = 9000;
 template <class D>
 class TileManager {
  public:
-  TileManager(std::string id, Tiling tiling, std::shared_ptr<TileLoader<D>> loader, RequestScheduler& scheduler, ManagerOptions options,
+  TileManager(std::string id, const Tiling& tiling, std::shared_ptr<TileLoader<D>> loader, RequestScheduler& scheduler, ManagerOptions options,
               ManagerEvents events)
-      : id(std::move(id)), tiling(std::move(tiling)), options(std::move(options)), loader_(std::move(loader)), scheduler_(scheduler),
+      : id(std::move(id)), tiling(tiling), options(std::move(options)), loader_(std::move(loader)), scheduler_(scheduler),
         events_(std::move(events)) {}
 
   ~TileManager() { destroy(); }
