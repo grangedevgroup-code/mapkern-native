@@ -83,6 +83,15 @@ TEST("gestures: a drag keeps the grabbed place under the finger") {
   if (grabbed && now) EXPECT(std::abs((*grabbed)[0] - (*now)[0]) < 1e-9 && std::abs((*grabbed)[1] - (*now)[1]) < 1e-9);
 }
 
+TEST("gestures: a globe drag keeps the grabbed place under the finger") {
+  Rig r(true, 2.5);
+  const auto grabbed = r.t.unproject(300, 560);
+  r.drag(1, 300, 560, 430, 700, 0);
+  const auto now = r.t.unproject(430, 700);
+  EXPECT(grabbed && now);
+  if (grabbed && now) EXPECT(std::abs((*grabbed)[0] - (*now)[0]) < 1e-6 && std::abs((*grabbed)[1] - (*now)[1]) < 1e-6);
+}
+
 TEST("gestures: small finger jitter is a tap, two taps zoom in") {
   Rig r(false, 10);
   const auto c0 = r.t.unproject(400, 600);
