@@ -105,20 +105,21 @@ class MapView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        doubleTap.onTouchEvent(event)
         val action = when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> 0
             MotionEvent.ACTION_MOVE -> 1
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> 2
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> 2
+            MotionEvent.ACTION_CANCEL -> 3
             else -> return true
         }
-        val points = if (action == 1) (0 until event.pointerCount).toList() else listOf(event.actionIndex)
+        val points = if (action == 1 || action == 3) (0 until event.pointerCount).toList() else listOf(event.actionIndex)
         val ids = points.map { event.getPointerId(it) }
         val xs = points.map { event.getX(it) / density }
         val ys = points.map { event.getY(it) / density }
+        val time = event.eventTime.toDouble()
         queueEvent {
             if (handle == 0L) return@queueEvent
-            for (i in ids.indices) nativePointer(handle, action, ids[i], xs[i], ys[i])
+            for (i in ids.indices) nativePointer(handle, action, ids[i], xs[i], ys[i], time)
         }
         requestRender()
         return true
