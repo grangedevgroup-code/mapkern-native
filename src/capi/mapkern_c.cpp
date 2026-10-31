@@ -225,6 +225,7 @@ void mk_map_project(const mk_map* m, double lng, double lat, double* x, double* 
 void mk_map_pointer_down(mk_map* m, int id, double x, double y) { m->map->pointerDown(id, x, y); }
 void mk_map_pointer_move(mk_map* m, int id, double x, double y) { m->map->pointerMove(id, x, y); }
 void mk_map_pointer_up(mk_map* m, int id, double x, double y) { m->map->pointerUp(id, x, y); }
+void mk_map_pointer_cancel(mk_map* m, int id) { m->map->pointerCancel(id); }
 void mk_map_wheel(mk_map* m, double d, double x, double y) { m->map->wheel(d, x, y); }
 void mk_map_double_tap(mk_map* m, double x, double y) { m->map->doubleTap(x, y); }
 void mk_map_zoom_by(mk_map* m, double d, double x, double y, int a) { m->map->zoomBy(d, x, y, a != 0); }
