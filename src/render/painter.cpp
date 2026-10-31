@@ -336,7 +336,11 @@ void Painter::renderDrapes(const FrameInput& frame, const std::vector<CoveringTi
     }
     DrapeEntry& entry = drapes_[slotKey(slot)];
     entry.used = frameCount_;
-    if (entry.drawn && entry.size == size && entry.signature == sig) continue;
+    const double drift = entry.drawn ? std::abs(entry.zoom - scale) : 0;
+    if (entry.drawn && entry.size == size && entry.signature == sig && drift < tolerance) {
+      if (drift >= kRestingZoomStep && tolerance != kInfinity) drapesBehind_ = true;
+      continue;
+    }
     const bool busy = nowMs() > deadline || redrawn >= 6;
     if (busy && (entry.drawn || slotDrape(slot).first)) {
       drapesBehind_ = true;
