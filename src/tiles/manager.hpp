@@ -64,6 +64,12 @@ struct TileStats {
   double blankPending = 0, blankFailed = 0, noData = 0;
 };
 
+struct UploadBudget {
+  double deadline = 0;
+  bool used = false;
+  bool spent() const { return used && nowMs() > deadline; }
+};
+
 struct ManagerEvents {
   std::function<void()> changed;
   std::function<void(const TileFailure&, TileId)> failure;
@@ -267,7 +273,7 @@ class TileManager {
     evict();
   }
 
-  bool uploadPending(double deadline, double now) {
+  bool uploadPending(UploadBudget& budget, double now) {
     std::vector<std::shared_ptr<Tile<D>>> pending;
     int swaps = 0;
     for (auto& [k, t] : tiles_) {
@@ -282,17 +288,17 @@ class TileManager {
     std::stable_sort(pending.begin(), pending.end(), [](const auto& a, const auto& b) {
       return (a->wanted ? a->priority : 1e12) < (b->wanted ? b->priority : 1e12);
     });
-    bool uploaded = false, more = false;
+    bool more = false;
     for (size_t i = 0; i < pending.size(); i++) {
       auto& t = pending[i];
-      if (uploaded && nowMs() > deadline) {
+      if (budget.spent()) {
         for (size_t j = i; j < pending.size(); j++)
           if (pending[j]->next || !speculative(*pending[j])) more = true;
         break;
       }
       if (t->next) {
         loader_->upload(*t->next);
-        uploaded = true;
+        budget.used = true;
         continue;
       }
       if (!t->data) continue;
@@ -300,7 +306,7 @@ class TileManager {
       t->bytes = loader_->byteSize(*t->data);
       t->state = TileState::Ready;
       t->readyAt = now;
-      uploaded = true;
+      budget.used = true;
     }
     if (swaps > 0) {
       if (!more && swapDue()) swapAll();
