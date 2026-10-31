@@ -135,7 +135,7 @@ std::optional<BucketData> buildBucket(const LayerProgram& program, const Feature
   FeatureTable& features = bucket.features;
   switch (program.type) {
     case BucketType::Fill: {
-      FillBuilder fill;
+      FillBuilder fill(static_cast<int32_t>(source.extent()));
       for (View* f : selected) {
         const uint32_t index = static_cast<uint32_t>(features.count());
         const auto polygons = classifyRings(source.geometry(f->index));
@@ -174,7 +174,7 @@ std::optional<BucketData> buildBucket(const LayerProgram& program, const Feature
         const auto parts = source.geometry(f->index);
         if (parts.empty()) continue;
         const bool closed = source.type(f->index) == 3;
-        for (const auto& part : parts) lines.addLine(part, index, closed);
+        for (const auto& part : parts) lines.addClipped(part, index, closed, static_cast<int32_t>(source.extent()));
         addFeature(features, source, f->index, program.keys);
       }
       if (lines.vertexCount == 0) return std::nullopt;
@@ -190,7 +190,10 @@ std::optional<BucketData> buildBucket(const LayerProgram& program, const Feature
         bool added = false;
         for (const auto& part : source.geometry(f->index))
           for (size_t i = 0; i + 1 < part.size(); i += 2) {
-            circles.addPoint(part[i], part[i + 1], index);
+            const int32_t px = part[i], py = part[i + 1];
+            const int32_t e = static_cast<int32_t>(source.extent());
+            if (px < 0 || py < 0 || px >= e || py >= e) continue;
+            circles.addPoint(px, py, index);
             added = true;
           }
         if (added) addFeature(features, source, f->index, program.keys);
