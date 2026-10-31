@@ -11,9 +11,9 @@
 
 namespace mapkern {
 
-enum class Program { Solid, Fill, FillClip, Line, LineClip, Circle, CircleClip, Extrusion, ExtrusionClip, Raster, Count };
+enum class Program { Solid, Fill, FillClip, Line, LineClip, Circle, CircleClip, Extrusion, ExtrusionClip, Raster, Globe, Atmosphere, Pole, Count };
 
-enum class Blend { None, Premultiplied };
+enum class Blend { None, Premultiplied, Additive };
 enum class StencilMode { Off, Write, Equal, Mask };
 enum class DepthMode { Off, Test, TestWrite };
 
