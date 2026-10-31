@@ -20,8 +20,9 @@ import android.os.StatFs
 import android.os.SystemClock
 import android.system.Os
 import android.system.OsConstants
+import android.hardware.display.DisplayManager
 import android.util.Log
-import android.view.WindowManager
+import android.view.Display
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
