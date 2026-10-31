@@ -4,11 +4,13 @@ set(MAPKERN_CORE_SOURCES
   src/core/url.cpp
   src/core/value.cpp
   src/formats/bytes.cpp
+  src/formats/image.cpp
   src/formats/inflate.cpp
   src/formats/mvt.cpp
   src/formats/pmtiles.cpp
   src/formats/sqlite.cpp
   src/geo/tessellate.cpp
+  src/map/tileset.cpp
   src/net/http.cpp
   src/style/color.cpp
   src/style/expression.cpp
@@ -23,4 +25,5 @@ set(MAPKERN_CORE_SOURCES
 )
 
 set(MAPKERN_RENDER_SOURCES
+  src/render/gpu.cpp
 )
