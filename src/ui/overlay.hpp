@@ -52,6 +52,7 @@ class Overlay {
   bool pointerDown(int id, double x, double y);
   bool pointerMove(int id, double x, double y);
   bool pointerUp(int id, double x, double y);
+  void pointerCancel(int id) { pressed_.erase(id); }
   int draw(const PassFormat& format, double width, double height);
   void resetGpu(bool release);
   bool menuOpen() const { return menu_; }
