@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <functional>
 #include <map>
 #include <set>
 
@@ -194,7 +195,7 @@ const Value* get(const Object& o, std::string_view key) {
   return nullptr;
 }
 
-void erase(Object& o, std::string_view key) {
+void eraseKey(Object& o, std::string_view key) {
   o.erase(std::remove_if(o.begin(), o.end(), [&](const auto& kv) { return kv.first == key; }), o.end());
 }
 
@@ -215,7 +216,6 @@ Value keyOf(const std::string& key) {
 
 bool isFunction(const Value& v) { return v.isObject() && (v["stops"].isArray() || v["type"].stringOr("") == "identity"); }
 
-const std::regex* tokenRegexUnused = nullptr;
 
 Value plainFormat(const Value& value) {
   if (!value.isArray()) return value;
@@ -643,7 +643,7 @@ struct Converted {
 };
 
 const Value& heatV8() {
-  static const Value v = *parseJson(R"(["interpolate",["linear"],["heatmap-density"],0,"rgba(0, 0, 255, 0)",0.1,"royalblue",0.3,"cyan",0.5,"lime",0.7,"yellow",1,"red"])");
+  static const Value v = *parseJson(R"j(["interpolate",["linear"],["heatmap-density"],0,"rgba(0, 0, 255, 0)",0.1,"royalblue",0.3,"cyan",0.5,"lime",0.7,"yellow",1,"red"])j");
   return v;
 }
 
@@ -809,7 +809,7 @@ Value settle(Object layer, const std::map<std::string, std::string>& origin, con
         const Value* section = get(layer, group);
         if (section && section->has(name)) {
           Object s = section->asObject();
-          erase(s, name);
+          eraseKey(s, name);
           put(layer, group, s);
           auto o = origin.find(group + "." + name);
           skipped.add((o != origin.end() ? o->second : name) + " couldn't be used: " + issue.message, id);
@@ -818,7 +818,7 @@ Value settle(Object layer, const std::map<std::string, std::string>& origin, con
         }
       }
       if (issue.path == "layer.sortKey" && get(layer, "sortKey")) {
-        erase(layer, "sortKey");
+        eraseKey(layer, "sortKey");
         skipped.add("sort key couldn't be used: " + issue.message, id);
         removed = true;
       }
@@ -834,7 +834,7 @@ Value settle(Object layer, const std::map<std::string, std::string>& origin, con
 Value withRef(const Value& layer, const Value* parent) {
   if (!parent || parent->has("ref")) return {};
   Object out = layer.asObject();
-  erase(out, "ref");
+  eraseKey(out, "ref");
   for (const char* key : {"type", "source", "source-layer", "minzoom", "maxzoom", "filter", "layout"})
     if (parent->has(key)) put(out, key, (*parent)[key]);
   return out;
@@ -1056,7 +1056,7 @@ ImportedStyle importStyle(const Value& input, const std::string& base) {
     for (const auto& issue : root) {
       const std::string key = issue.path.substr(0, issue.path.find('.'));
       if (get(style, key) && key != "version") {
-        erase(style, key);
+        eraseKey(style, key);
         skipped.add(key + " couldn't be used: " + issue.message);
       }
     }
