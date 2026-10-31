@@ -676,41 +676,68 @@ double Transform::setLocationAtPoint(World world, double px, double py, std::opt
 }
 
 double Transform::rotateGlobeTo(World world, double px, double py, std::optional<double> z, bool keepSize) {
-  double zoomShift = 0;
-  for (int i = 0; i < 16; i++) {
-    update();
-    std::optional<double> gz;
-    if (z) gz = *z * worldSize();
-    const World hit = unprojectClamped(px, py, gz);
-    const auto t = northUpAngles(world[0], world[1]);
-    const auto h = northUpAngles(hit[0], hit[1]);
-    const double dNorth = t[0] - h[0];
-    const double dEast = t[1] - h[1];
-    if (std::abs(dNorth) < 1e-13 && std::abs(dEast) < 1e-13) break;
-    const double latRad = latFromMercatorY(cy_) * kPi / 180;
-    const double lat = clampLatitude(latFromMercatorY(cy_) + dNorth * 180 / kPi);
-    const double dx = dEast / std::max(std::cos(latRad), 1e-6) / (2 * kPi);
-    const double before = std::cosh(kPi * (1 - 2 * cy_));
-    const double g = globeAmount_;
-    const double x = cx_, y = cy_;
-    setCenterWorld(cx_ + std::clamp(dx, -0.25, 0.25), mercatorY(lat));
-    if (keepSize) {
-      const double after = std::cosh(kPi * (1 - 2 * cy_));
-      const double zoom = z_;
-      setZoom(zoom + g * std::log2(before / after));
-      zoomShift += z_ - zoom;
+  const double startZoom = z_;
+  const double startStretch = std::cosh(kPi * (1 - 2 * cy_));
+  const double g = globeAmount_;
+  auto place = [&](double x, double y) {
+    setCenterWorld(x, y);
+    if (keepSize) setZoom(startZoom + g * std::log2(startStretch / std::cosh(kPi * (1 - 2 * cy_))));
+  };
+  auto miss = [&](double r[2]) {
+    double p[2];
+    projectTo(p, world[0], world[1], z ? *z * worldSize() : 0);
+    r[0] = p[0] - px;
+    r[1] = p[1] - py;
+    return r[0] * r[0] + r[1] * r[1];
+  };
+  double r[2];
+  double err = miss(r);
+  double lambda = 1e-3;
+  for (int iter = 0; iter < 24 && err > 1e-4; iter++) {
+    const double x0 = cx_, y0 = cy_;
+    const double h = 0.25 / worldSize();
+    double rx[2], ry[2];
+    place(x0 + h, y0);
+    miss(rx);
+    const double hy = y0 + h <= 1 ? h : -h;
+    place(x0, y0 + hy);
+    miss(ry);
+    const double jx[2] = {(rx[0] - r[0]) / h, (rx[1] - r[1]) / h};
+    const double jy[2] = {(ry[0] - r[0]) / hy, (ry[1] - r[1]) / hy};
+    const double a = jx[0] * jx[0] + jx[1] * jx[1], b = jx[0] * jy[0] + jx[1] * jy[1], d = jy[0] * jy[0] + jy[1] * jy[1];
+    const double gx = jx[0] * r[0] + jx[1] * r[1], gy = jy[0] * r[0] + jy[1] * r[1];
+    bool improved = false;
+    for (int attempt = 0; attempt < 8 && !improved; attempt++) {
+      const double damp = lambda * (a + d);
+      const double A = a + damp, D = d + damp;
+      const double det = A * D - b * b;
+      if (!(std::abs(det) > 0)) break;
+      double sx = -(D * gx - b * gy) / det;
+      double sy = -(A * gy - b * gx) / det;
+      const double longest = std::max(std::abs(sx), std::abs(sy));
+      if (longest > 0.05) {
+        sx *= 0.05 / longest;
+        sy *= 0.05 / longest;
+      }
+      place(x0 + sx, y0 + sy);
+      double rn[2];
+      const double e = miss(rn);
+      if (e < err) {
+        err = e;
+        r[0] = rn[0];
+        r[1] = rn[1];
+        lambda = std::max(lambda / 3, 1e-9);
+        improved = true;
+      } else {
+        lambda *= 4;
+      }
     }
-    if (cx_ == x && cy_ == y) break;
+    if (!improved) {
+      place(x0, y0);
+      break;
+    }
   }
-  return zoomShift;
-}
-
-std::array<double, 2> Transform::northUpAngles(double x, double y) const {
-  const auto u = unitFromMercator(x, y);
-  const double up = dot3(axisC_, u.data());
-  const double east = dot3(axisE_, u.data());
-  const double north = dot3(axisN_, u.data());
-  return {std::atan2(north, up), std::atan2(east, std::hypot(north, up))};
+  return z_ - startZoom;
 }
 
 void Transform::zoomAround(double zoom, double px, double py, std::optional<double> z) {
