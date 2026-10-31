@@ -435,3 +435,189 @@ void main() {
 @end
 
 @program raster raster_vs raster_fs
+
+@block globe_chunk
+vec3 surface_point(vec2 rel, float meters, float pole, vec4 globe, vec4 center) {
+  float y = center.x + rel.y;
+  float m = 3.14159265 * (1.0 - 2.0 * y);
+  float cosh_m = cosh(m);
+  vec3 flat_point = vec3(rel * globe.z, meters * globe.z * cosh_m / 40075016.686);
+  float sin_lat = tanh(m);
+  float cos_lat = 1.0 / cosh_m;
+  if (pole != 0.0) {
+    sin_lat = pole;
+    cos_lat = 0.0;
+  }
+  float lng = 6.28318531 * (rel.x - floor(rel.x + 0.5));
+  float cos_lng = cos(lng);
+  float east = cos_lat * sin(lng);
+  float north = sin_lat * center.z - cos_lat * center.y * cos_lng;
+  float up = sin_lat * center.y + cos_lat * center.z * cos_lng;
+  float r = globe.y + meters * globe.z * globe.w / 40075016.686;
+  vec3 sphere = vec3(r * east, -r * north, r * up - globe.y);
+  return mix(flat_point, sphere, globe.x);
+}
+@end
+
+@vs globe_vs
+layout(binding=0) uniform globe_vs_params {
+  mat4 u_matrix;
+  vec4 u_globe;
+  vec4 u_center;
+  vec4 u_tile;
+  vec4 u_tile_world;
+  vec4 u_dem_rect;
+  vec4 u_dem_info;
+};
+@include_block globe_chunk
+layout(binding=2) uniform texture2D dem_tex;
+layout(binding=2) uniform sampler dem_smp;
+in ivec4 a_pos;
+out vec2 v_uv;
+out float v_pole;
+out vec2 v_world;
+out vec3 v_local;
+float dem_elevation(vec2 uv) {
+  vec2 p = uv * u_dem_info.x + 1.5;
+  vec2 f = floor(p);
+  vec2 t = p - f;
+  ivec2 i = ivec2(f);
+  float a = texelFetch(sampler2D(dem_tex, dem_smp), i, 0).r;
+  float b = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(1, 0), 0).r;
+  float c = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(0, 1), 0).r;
+  float d = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(1, 1), 0).r;
+  return mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
+}
+void main() {
+  vec4 pos = vec4(a_pos);
+  vec2 uv = pos.xy / 64.0;
+  v_uv = uv;
+  v_pole = pos.w;
+  v_world = u_tile_world.xy + uv * u_tile_world.z;
+  float meters = u_dem_info.y > 0.5 ? dem_elevation(u_dem_rect.xy + uv * u_dem_rect.zw) * u_dem_info.z : 0.0;
+  meters -= pos.z * u_dem_info.w;
+  float pole = pos.w > 0.5 ? (uv.y < 0.5 ? 1.0 : -1.0) : 0.0;
+  v_local = surface_point(u_tile.xy + uv * u_tile.z, meters, pole, u_globe, u_center);
+  gl_Position = u_matrix * vec4(v_local, 1.0);
+}
+@end
+
+@fs globe_fs
+layout(binding=1) uniform globe_fs_params {
+  vec4 u_drape_rect;
+  vec4 u_base;
+  vec4 u_atmo;
+  vec4 u_misc;
+};
+layout(binding=0) uniform texture2D drape_tex;
+layout(binding=0) uniform sampler drape_smp;
+layout(binding=1) uniform texture2D pole_tex;
+layout(binding=1) uniform sampler pole_smp;
+in vec2 v_uv;
+in float v_pole;
+in vec2 v_world;
+in vec3 v_local;
+out vec4 frag_color;
+void main() {
+  vec2 uv = u_drape_rect.xy + v_uv * u_drape_rect.zw;
+  if (u_misc.z > 0.5) uv.y = 1.0 - uv.y;
+  vec4 color;
+  if (u_misc.x > 0.5) {
+    vec4 edge = texture(sampler2D(drape_tex, drape_smp), uv);
+    float row = u_misc.z > 0.5 ? 1.0 - uv.y : uv.y;
+    vec4 pole = texture(sampler2D(pole_tex, pole_smp), vec2(row < 0.5 ? 0.25 : 0.75, 0.5));
+    color = mix(edge, pole, smoothstep(0.08, 0.7, v_pole));
+  } else {
+    color = texture(sampler2D(drape_tex, drape_smp), uv);
+  }
+  color += u_base * (1.0 - color.a);
+  if (u_atmo.w > 0.0) {
+    vec3 normal = normalize(v_local + vec3(0.0, 0.0, u_misc.y));
+    float facing = clamp(dot(normal, normalize(u_atmo.xyz - v_local)), 0.0, 1.0);
+    float haze = (pow(1.0 - facing, 2.6) * 0.8 + 0.04) * u_atmo.w;
+    color.rgb = mix(color.rgb, vec3(0.56, 0.74, 1.0) * color.a, haze);
+  }
+  frag_color = color;
+}
+@end
+
+@program globe globe_vs globe_fs
+
+@vs atmosphere_vs
+in vec2 a_pos;
+out vec2 v_ndc;
+void main() {
+  v_ndc = a_pos * 2.0 - 1.0;
+  gl_Position = vec4(v_ndc, 0.0, 1.0);
+}
+@end
+
+@fs atmosphere_fs
+layout(binding=1) uniform atmosphere_params {
+  mat4 u_inverse;
+  vec4 u_camera;
+  vec4 u_space;
+  vec4 u_sky;
+  vec4 u_sun;
+  vec4 u_misc;
+};
+in vec2 v_ndc;
+out vec4 frag_color;
+void main() {
+  vec4 far = u_inverse * vec4(v_ndc, 1.0, 1.0);
+  vec3 dir = normalize(far.xyz / far.w - u_camera.xyz);
+  float radius = u_camera.w;
+  vec3 oc = u_camera.xyz + vec3(0.0, 0.0, radius);
+  float b = dot(oc, dir);
+  vec3 closest = oc - dir * min(b, 0.0);
+  float r = length(closest);
+  float scale = 0.011 * radius;
+  float height = max(r - radius, 0.0);
+  float depth = b < 0.0 ? exp(-height / scale) * sqrt(r / scale) * 0.09 : 0.0;
+  float lit = 1.0;
+  vec3 tint = vec3(1.0);
+  if (u_sun.w > 0.5) {
+    float facing = dot(closest / r, u_sun.xyz);
+    lit = smoothstep(-0.32, 0.12, facing);
+    tint = mix(vec3(1.0, 0.62, 0.38), vec3(1.0), smoothstep(-0.12, 0.3, facing));
+  }
+  vec3 scatter = (1.0 - exp(-depth * vec3(0.38, 0.62, 1.0) * 2.4)) * vec3(0.62, 0.8, 1.0) * tint * lit;
+  float up = clamp(dir.z * 0.5 + 0.5, 0.0, 1.0);
+  vec4 space = mix(u_space, u_sky, u_misc.x * smoothstep(0.35, 0.75, up));
+  frag_color = vec4(min(space.rgb + scatter * (1.0 - 0.6 * u_misc.x), vec3(1.0)), 1.0);
+}
+@end
+
+@program atmosphere atmosphere_vs atmosphere_fs
+
+@vs pole_vs
+layout(binding=0) uniform pole_vs_params {
+  vec4 u_target;
+};
+in vec2 a_pos;
+void main() {
+  vec2 p = vec2(u_target.x, 0.0) + (a_pos - 0.5) * vec2(0.9, 1.9);
+  gl_Position = vec4(p, 0.0, 1.0);
+}
+@end
+
+@fs pole_fs
+layout(binding=1) uniform pole_fs_params {
+  vec4 u_rect;
+  vec4 u_info;
+};
+layout(binding=0) uniform texture2D drape_tex;
+layout(binding=0) uniform sampler drape_smp;
+out vec4 frag_color;
+void main() {
+  vec4 sum = vec4(0.0);
+  for (int i = 0; i < 8; i++) {
+    vec2 uv = u_rect.xy + vec2((float(i) + 0.5) / 8.0, u_info.x) * u_rect.zw;
+    if (u_info.z > 0.5) uv.y = 1.0 - uv.y;
+    sum += texture(sampler2D(drape_tex, drape_smp), uv);
+  }
+  frag_color = sum * (u_info.y / 8.0);
+}
+@end
+
+@program pole pole_vs pole_fs
