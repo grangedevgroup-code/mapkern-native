@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -25,9 +26,8 @@ class Value {
   Value() = default;
   Value(std::nullptr_t) {}
   Value(bool b) : v_(b) {}
-  Value(int n) : v_(static_cast<double>(n)) {}
-  Value(int64_t n) : v_(static_cast<double>(n)) {}
-  Value(uint64_t n) : v_(static_cast<double>(n)) {}
+  template <typename T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>, int> = 0>
+  Value(T n) : v_(static_cast<double>(n)) {}
   Value(double n) : v_(n) {}
   Value(float n) : v_(static_cast<double>(n)) {}
   Value(const char* s) : v_(std::string(s)) {}
