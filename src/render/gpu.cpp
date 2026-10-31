@@ -61,13 +61,17 @@ void Gpu::setup(const sg_environment& environment) {
   shaders_[static_cast<int>(Program::CircleClip)] = sg_make_shader(mk_circle_clip_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::ExtrusionClip)] = sg_make_shader(mk_extrusion_clip_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::Raster)] = sg_make_shader(mk_raster_shader_desc(sg_query_backend()));
+  shaders_[static_cast<int>(Program::Terrain)] = sg_make_shader(mk_terrain_shader_desc(sg_query_backend()));
+  shaders_[static_cast<int>(Program::Hillshade)] = sg_make_shader(mk_hillshade_shader_desc(sg_query_backend()));
   const float quad[] = {0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1};
   sg_buffer_desc q{};
   q.data = SG_RANGE(quad);
   q.label = "quad";
   quad_ = sg_make_buffer(&q);
-  const uint8_t white[4] = {0, 0, 0, 0};
-  blank_ = texture(1, 1, SG_PIXELFORMAT_RGBA8, white, 4);
+  const uint8_t clear[4] = {0, 0, 0, 0};
+  blank_ = texture(1, 1, SG_PIXELFORMAT_RGBA8, clear, 4);
+  const uint8_t white[4] = {255, 255, 255, 255};
+  white_ = texture(1, 1, SG_PIXELFORMAT_RGBA8, white, 4);
   const float zero[4] = {0, 0, 0, 0};
   blankFloat_ = floatTexture(1, 1, zero);
   ready_ = true;
@@ -79,6 +83,7 @@ void Gpu::shutdown() {
   samplers_.clear();
   blank_ = {};
   blankFloat_ = {};
+  white_ = {};
   sg_shutdown();
   ready_ = false;
 }
@@ -198,6 +203,7 @@ sg_pipeline Gpu::pipeline(const PipelineKey& key) {
   switch (key.program) {
     case Program::Solid:
     case Program::Raster:
+    case Program::Hillshade:
     case Program::Atmosphere:
     case Program::Pole:
       layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
@@ -214,6 +220,10 @@ sg_pipeline Gpu::pipeline(const PipelineKey& key) {
     case Program::Globe:
       layout.buffers[0].stride = 8;
       layout.attrs[ATTR_mk_globe_a_pos] = {0, 0, SG_VERTEXFORMAT_SHORT4};
+      break;
+    case Program::Terrain:
+      layout.buffers[0].stride = 8;
+      layout.attrs[ATTR_mk_terrain_a_pos] = {0, 0, SG_VERTEXFORMAT_SHORT4};
       break;
     case Program::Fill:
     case Program::FillClip:
@@ -246,7 +256,8 @@ sg_pipeline Gpu::pipeline(const PipelineKey& key) {
       break;
     default: break;
   }
-  if (key.program != Program::Solid && key.program != Program::Raster && key.program != Program::Atmosphere && key.program != Program::Pole)
+  if (key.program != Program::Solid && key.program != Program::Raster && key.program != Program::Hillshade && key.program != Program::Atmosphere &&
+      key.program != Program::Pole)
     d.index_type = SG_INDEXTYPE_UINT32;
   if (key.blend == Blend::Premultiplied) {
     d.colors[0].blend.enabled = true;
