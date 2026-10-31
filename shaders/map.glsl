@@ -1,5 +1,19 @@
 @module mk
 
+@block dem_chunk
+float dem_elevation(vec2 uv, float size) {
+  vec2 p = uv * size + 1.5;
+  vec2 f = floor(p);
+  vec2 t = p - f;
+  ivec2 i = ivec2(f);
+  float a = texelFetch(sampler2D(dem_tex, dem_smp), i, 0).r;
+  float b = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(1, 0), 0).r;
+  float c = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(0, 1), 0).r;
+  float d = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(1, 1), 0).r;
+  return mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
+}
+@end
+
 @block paint
 layout(binding=0) uniform texture2D paint_tex;
 layout(binding=0) uniform sampler paint_smp;
@@ -349,6 +363,14 @@ layout(binding=0) uniform extrusion_params {
   vec4 u_paint;
 };
 @include_block paint
+layout(binding=3) uniform extrusion_dem {
+  vec4 u_dem_rect;
+  vec4 u_dem_info;
+  vec4 u_rows;
+};
+layout(binding=2) uniform texture2D dem_tex;
+layout(binding=2) uniform sampler dem_smp;
+@include_block dem_chunk
 in ivec2 a_pos;
 in ivec4 a_normal;
 in uint a_feature;
@@ -364,6 +386,12 @@ void main() {
   float shade = normal.z > 0.5 ? 1.0 : (0.66 + 0.3 * lambert) * (top ? 1.0 : 0.86);
   v_color = vec4(color.rgb * shade * color.a, color.a) * u_values.z;
   float z = (top ? height : base) * u_values.w;
+  if (u_dem_info.y > 0.5) {
+    vec2 g = clamp(vec2(a_pos) / u_dem_info.w, 0.0, 1.0);
+    float y = mix(u_rows.x, u_rows.y, g.y);
+    float ppm = u_rows.z * cosh(3.14159265 * (1.0 - 2.0 * y)) / 40075016.686;
+    z += dem_elevation(u_dem_rect.xy + g * u_dem_rect.zw, u_dem_info.x) * u_dem_info.z * ppm;
+  }
   v_pos = vec2(a_pos);
   gl_Position = u_matrix * vec4(vec2(a_pos), z, 1.0);
 }
@@ -459,19 +487,6 @@ vec3 surface_point(vec2 rel, float meters, float pole, vec4 globe, vec4 center) 
 }
 @end
 
-@block dem_chunk
-float dem_elevation(vec2 uv, float size) {
-  vec2 p = uv * size + 1.5;
-  vec2 f = floor(p);
-  vec2 t = p - f;
-  ivec2 i = ivec2(f);
-  float a = texelFetch(sampler2D(dem_tex, dem_smp), i, 0).r;
-  float b = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(1, 0), 0).r;
-  float c = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(0, 1), 0).r;
-  float d = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(1, 1), 0).r;
-  return mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
-}
-@end
 
 @block relief_chunk
 vec3 relief(vec3 color, vec2 uv, vec4 sun, vec4 grad, vec4 rows, vec4 rect) {
