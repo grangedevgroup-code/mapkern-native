@@ -111,6 +111,22 @@ class MapImpl {
 
   Gestures gestures{transform, GestureHost{[this](double x, double y) { return pickWorld(x, y); }, [this] { motion.reset(); },
                                            [this] { invalidate(); }, [this](double d, double x, double y) { easeZoom(d, x, y); }}};
+
+  struct FrameWindow {
+    uint64_t frames = 0, slow = 0, intervals = 0, draws = 0, drawsMax = 0;
+    double cpuSum = 0, cpuMax = 0, tickSum = 0, tickMax = 0, intervalSum = 0, intervalMax = 0;
+    std::array<uint64_t, 6> buckets{};
+  };
+  FrameWindow frameWindow;
+  double lastFrameStart = 0;
+  double lastSnapshot = 0;
+  diag::Totals lastTotals;
+  std::deque<std::pair<double, std::string>> recentErrors;
+  uint64_t errorCount = 0;
+  uint64_t errorsReported = 0;
+  std::vector<std::string> hudLines;
+  bool fitWorld = false;
+  std::string diagnosticsJson();
 };
 
 }
