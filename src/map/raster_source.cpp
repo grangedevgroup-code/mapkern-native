@@ -62,6 +62,8 @@ class RasterTileLoader : public TileLoader<RasterTileData> {
                        auto data = std::make_shared<RasterTileData>();
                        data->width = image->width;
                        data->height = image->height;
+                       if (isPowerOfTwo(image->width) && isPowerOfTwo(image->height))
+                         data->mips = mipChain(image->rgba.data(), image->width, image->height, SG_MAX_MIPMAPS);
                        data->image = std::move(image);
                        post(data);
                      },
@@ -73,19 +75,23 @@ class RasterTileLoader : public TileLoader<RasterTileData> {
 
   void upload(RasterTileData& data) override {
     if (!data.image) return;
-    const bool pow2 = isPowerOfTwo(data.width) && isPowerOfTwo(data.height);
-    data.texture = Gpu::get().texture(data.width, data.height, SG_PIXELFORMAT_RGBA8, data.image->rgba.data(), data.image->rgba.size(), pow2);
+    Gpu& gpu = Gpu::get();
+    const auto& rgba = data.image->rgba;
+    data.texture = data.mips.empty() ? gpu.texture(data.width, data.height, SG_PIXELFORMAT_RGBA8, rgba.data(), rgba.size())
+                                     : gpu.mipmappedTexture(data.width, data.height, rgba.data(), rgba.size(), data.mips);
     data.image.reset();
+    data.mips = {};
   }
 
   void release(RasterTileData& data) override {
     data.image.reset();
+    data.mips = {};
     data.texture.release();
   }
 
   size_t byteSize(const RasterTileData& data) const override {
     const size_t base = static_cast<size_t>(data.width) * data.height * 4;
-    return data.texture.valid() ? static_cast<size_t>(std::lround(base * 1.34)) : base;
+    return data.texture.valid() || !data.mips.empty() ? static_cast<size_t>(std::lround(base * 1.34)) : base;
   }
 
  private:
@@ -206,7 +212,7 @@ void RasterSource::update(Transform& transform, double now, const std::vector<Tr
   if (manager) manager->update(transform, now, predicted);
 }
 
-bool RasterSource::uploadPending(double deadline, double now) { return manager ? manager->uploadPending(deadline, now) : false; }
+bool RasterSource::uploadPending(UploadBudget& budget, double now) { return manager ? manager->uploadPending(budget, now) : false; }
 
 bool RasterSource::isIdle() const { return manager && manager->isLoaded() && !manager->hasPendingUploads(); }
 
