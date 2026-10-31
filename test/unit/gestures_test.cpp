@@ -25,6 +25,7 @@ struct Rig {
                            zoomDelta += d;
                          }}) {
     t.resize(800, 1236);
+    t.setZoomRange(-2, 22);
     if (globe) t.setProjection(Projection::Globe);
     t.setZoom(zoom);
     t.setCenter(-122.33, 47.61);
