@@ -869,9 +869,10 @@ void Map::pitchBy(double degrees) {
   impl_->transform.setPitch(impl_->transform.pitch() + degrees);
   impl_->invalidate();
 }
-void Map::pointerDown(int id, double x, double y) { impl_->pointerDown(id, x, y); }
-void Map::pointerMove(int id, double x, double y) { impl_->pointerMove(id, x, y); }
-void Map::pointerUp(int id, double x, double y) { impl_->pointerUp(id, x, y); }
+void Map::pointerDown(int id, double x, double y, double timeMs) { impl_->pointerDown(id, x, y, timeMs < 0 ? nowMs() : timeMs); }
+void Map::pointerMove(int id, double x, double y, double timeMs) { impl_->pointerMove(id, x, y, timeMs < 0 ? nowMs() : timeMs); }
+void Map::pointerUp(int id, double x, double y, double timeMs) { impl_->pointerUp(id, x, y, timeMs < 0 ? nowMs() : timeMs, false); }
+void Map::pointerCancel(int id) { impl_->pointerUp(id, 0, 0, nowMs(), true); }
 void Map::wheel(double d, double x, double y) { impl_->wheel(d, x, y); }
 void Map::doubleTap(double x, double y) {
   if (impl_->overlay && impl_->overlay->contains(x, y)) return;
