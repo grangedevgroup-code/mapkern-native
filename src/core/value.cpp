@@ -388,13 +388,8 @@ struct Parser {
       const char* start = p;
       if (*p == '-') p++;
       while (p < end && ((*p >= '0' && *p <= '9') || *p == '.' || *p == 'e' || *p == 'E' || *p == '+' || *p == '-')) p++;
-      double d = 0;
-      auto res = std::from_chars(start, p, d);
-      if (res.ec != std::errc() || res.ptr != p) {
-        if (res.ec == std::errc::result_out_of_range) d = (*start == '-') ? -HUGE_VAL : HUGE_VAL;
-        else ok = fail("bad number");
-      }
-      if (ok) out = Value(d);
+      if (validNumber(start, p)) out = Value(parseDouble(start, p));
+      else ok = fail("bad number");
     } else {
       ok = fail("unexpected character");
     }
