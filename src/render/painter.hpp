@@ -66,6 +66,7 @@ struct FrameInput {
   Color clearColor{0, 0, 0, 0};
   Terrain* terrain = nullptr;
   ui::Overlay* overlay = nullptr;
+  bool moving = false;
 };
 
 struct PaintStats {
