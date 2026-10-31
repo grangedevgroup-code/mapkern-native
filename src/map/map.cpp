@@ -555,9 +555,15 @@ void MapImpl::tick(double now) {
     if (l->settle(now)) dirty = true;
   updateTerrain();
   for (auto& [id, s] : sources) s->update(transform, now, {});
-  const double deadline = nowMs() + 6;
-  for (auto& [id, s] : sources)
-    if (s->uploadPending(deadline, now)) dirty = true;
+  const double uploadStart = nowMs();
+  UploadBudget budget{uploadStart + 6};
+  std::vector<Source*> order;
+  order.reserve(sources.size());
+  for (auto& [id, s] : sources) order.push_back(s.get());
+  if (!order.empty()) std::rotate(order.begin(), order.begin() + static_cast<std::ptrdiff_t>(uploadTurn++ % order.size()), order.end());
+  for (Source* s : order)
+    if (s->uploadPending(budget, now)) dirty = true;
+  uploadMs = nowMs() - uploadStart;
   scheduler.pump();
   if (wakeAt > 0 && now >= wakeAt) {
     wakeAt = 0;
@@ -620,9 +626,21 @@ bool MapImpl::renderTarget(const FrameTarget& target) {
   f.tickSum += tickMs;
   f.tickMax = std::max(f.tickMax, tickMs);
   if (lastFrameMs > 16.7) f.slow++;
-  const uint64_t draws = static_cast<uint64_t>(painter.stats().drawCalls);
+  const PaintStats& ps = painter.stats();
+  const uint64_t draws = static_cast<uint64_t>(ps.drawCalls);
   f.draws += draws;
   f.drawsMax = std::max(f.drawsMax, draws);
+  f.drapes += static_cast<uint64_t>(ps.drapes);
+  f.uploadSum += uploadMs;
+  f.uploadMax = std::max(f.uploadMax, uploadMs);
+  f.drapeSum += ps.drapeMs;
+  f.drapeMax = std::max(f.drapeMax, ps.drapeMs);
+  f.labelSum += ps.labelMs;
+  f.labelMax = std::max(f.labelMax, ps.labelMs);
+  if (lastFrameMs > f.worst.back().ms) {
+    f.worst.back() = {start, lastFrameMs, tickMs, uploadMs, ps.drapeMs, ps.labelMs, draws};
+    std::sort(f.worst.begin(), f.worst.end(), [](const SlowFrame& a, const SlowFrame& b) { return a.ms > b.ms; });
+  }
   if (lastFrameStart > 0 && start - lastFrameStart < 250) {
     const double gap = start - lastFrameStart;
     f.intervals++;
@@ -750,6 +768,16 @@ std::string MapImpl::diagnosticsJson() {
   const double frames = static_cast<double>(f.frames);
   Array buckets;
   for (uint64_t b : f.buckets) buckets.emplace_back(static_cast<double>(b));
+  Array worst;
+  for (const SlowFrame& w : f.worst)
+    if (w.ms > 0)
+      worst.emplace_back(Object{{"ms", r2(w.ms)},
+                                {"tickMs", r2(w.tick)},
+                                {"uploadMs", r2(w.upload)},
+                                {"drapeMs", r2(w.drapes)},
+                                {"labelMs", r2(w.labels)},
+                                {"draws", static_cast<double>(w.draws)},
+                                {"agoMs", std::round(now - w.at)}});
   Object frame{{"frames", frames},
                {"fps", rate(frames)},
                {"cpuAvgMs", f.frames ? r2(f.cpuSum / frames) : 0.0},
@@ -762,7 +790,15 @@ std::string MapImpl::diagnosticsJson() {
                {"intervalBuckets", Value(std::move(buckets))},
                {"drawsAvg", f.frames ? r2(static_cast<double>(f.draws) / frames) : 0.0},
                {"drawsMax", static_cast<double>(f.drawsMax)},
-               {"pieces", painter.stats().pieces}};
+               {"pieces", painter.stats().pieces},
+               {"uploadAvgMs", f.frames ? r2(f.uploadSum / frames) : 0.0},
+               {"uploadMaxMs", r2(f.uploadMax)},
+               {"drapes", static_cast<double>(f.drapes)},
+               {"drapeAvgMs", f.frames ? r2(f.drapeSum / frames) : 0.0},
+               {"drapeMaxMs", r2(f.drapeMax)},
+               {"labelAvgMs", f.frames ? r2(f.labelSum / frames) : 0.0},
+               {"labelMaxMs", r2(f.labelMax)},
+               {"worst", Value(std::move(worst))}};
   static const char* kinds[] = {"style", "source", "tile", "glyphs", "sprite", "image"};
   Object requests;
   for (int i = 0; i < diag::kKinds; i++) requests.emplace_back(kinds[i], d(t.requests[i], p.requests[i]));
@@ -786,15 +822,23 @@ std::string MapImpl::diagnosticsJson() {
     cache.emplace_back("diskBytes", static_cast<double>(c.bytes));
     cache.emplace_back("diskEntries", static_cast<double>(c.entries));
   }
-  static const char* stages[] = {"vectorTile", "image", "dem"};
-  Object decode;
-  for (int i = 0; i < static_cast<int>(diag::Stage::Count); i++) {
+  auto stage = [&](diag::Stage s) {
+    const int i = static_cast<int>(s);
     const double n = d(t.stages[i].count, p.stages[i].count);
-    decode.emplace_back(stages[i], Object{{"n", n},
-                                          {"avgMs", n > 0 ? r2((t.stages[i].totalMs - p.stages[i].totalMs) / n) : 0.0},
-                                          {"maxMs", r2(t.stages[i].maxMs)},
-                                          {"kb", r2(d(t.stageBytes[i], p.stageBytes[i]) / 1024)}});
-  }
+    return Object{{"n", n},
+                  {"avgMs", n > 0 ? r2((t.stages[i].totalMs - p.stages[i].totalMs) / n) : 0.0},
+                  {"maxMs", r2(t.stages[i].maxMs)},
+                  {"kb", r2(d(t.stageBytes[i], p.stageBytes[i]) / 1024)}};
+  };
+  Object decode{{"vectorTile", stage(diag::Stage::VectorTile)}, {"image", stage(diag::Stage::Image)}, {"dem", stage(diag::Stage::Dem)}};
+  const SlowUpload slowest = Gpu::get().takeSlowestUpload();
+  Object upload{{"textures", stage(diag::Stage::Texture)},
+                {"buffers", stage(diag::Stage::Buffer)},
+                {"slowest", Object{{"ms", r2(slowest.ms)},
+                                   {"width", slowest.width},
+                                   {"height", slowest.height},
+                                   {"levels", slowest.levels},
+                                   {"format", pixelFormatName(slowest.format)}}}};
   Object tiles;
   double tileBytes = 0;
   for (const auto& [id, src] : sources) {
@@ -839,7 +883,8 @@ std::string MapImpl::diagnosticsJson() {
   for (size_t i = recentErrors.size() - take; i < recentErrors.size(); i++) fresh.emplace_back(recentErrors[i].second);
   Object errors{{"new", static_cast<double>(added)}, {"total", static_cast<double>(errorCount)}, {"recent", Value(std::move(fresh))}};
   Object root{{"span", r2(span)},       {"frame", Value(std::move(frame))},   {"net", Value(std::move(net))},
-              {"cache", Value(std::move(cache))}, {"decode", Value(std::move(decode))}, {"tiles", Value(std::move(tiles))},
+              {"cache", Value(std::move(cache))}, {"decode", Value(std::move(decode))}, {"upload", Value(std::move(upload))},
+              {"tiles", Value(std::move(tiles))},
               {"tileMb", r2(tileBytes / 1048576)}, {"camera", Value(std::move(camera))}, {"state", Value(std::move(state))},
               {"errors", Value(std::move(errors))}};
   frameWindow = FrameWindow{};
