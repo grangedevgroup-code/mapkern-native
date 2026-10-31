@@ -11,6 +11,7 @@ set(MAPKERN_CORE_SOURCES
   src/formats/sqlite.cpp
   src/formats/wuffs.cpp
   src/geo/tessellate.cpp
+  src/map/gestures.cpp
   src/map/tileset.cpp
   src/net/http.cpp
   src/style/color.cpp
@@ -30,7 +31,6 @@ set(MAPKERN_CORE_SOURCES
 )
 
 set(MAPKERN_RENDER_SOURCES
-  src/map/gestures.cpp
   src/map/map.cpp
   src/map/raster_source.cpp
   src/map/dem_source.cpp
