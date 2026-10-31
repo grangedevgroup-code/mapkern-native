@@ -110,7 +110,8 @@ struct PathGlyph {
 };
 
 std::optional<std::vector<PathGlyph>> layoutAlongPath(Transform& t, const std::vector<double>& path, double anchorDist, const Laid& laid,
-                                                      double scale, double maxAngle = kPi / 4, bool keepUpright = true) {
+                                                      double scale, const std::vector<double>* heights, double maxAngle = kPi / 4,
+                                                      bool keepUpright = true) {
   const size_t n = path.size() / 2;
   if (n < 2) return std::nullopt;
   double target = anchorDist;
@@ -127,7 +128,8 @@ std::optional<std::vector<PathGlyph>> layoutAlongPath(Transform& t, const std::v
   }
   const double width = laid.width * scale;
   auto project = [&](size_t i) -> std::optional<std::array<double, 2>> {
-    const auto p = t.project(path[i * 2], path[i * 2 + 1], 0);
+    const double ws = t.worldSize();
+    const auto p = t.project(path[i * 2], path[i * 2 + 1], heights && i < heights->size() ? (*heights)[i] * ws : 0);
     if (p.w <= 0) return std::nullopt;
     return std::array<double, 2>{p.x, p.y};
   };
@@ -193,8 +195,9 @@ std::optional<std::vector<PathGlyph>> layoutAlongPath(Transform& t, const std::v
 }
 
 template <class Emit>
-bool layoutOnGround(Transform& t, const std::vector<double>& path, double anchorDist, const Laid& laid, double size, double maxAngle, bool keepUpright,
-                    Emit&& emit) {
+bool layoutOnGround(Transform& t, const std::vector<double>& path, double anchorDist, const Laid& laid, double size, const std::vector<double>* heights,
+                    double maxAngle, bool keepUpright, Emit&& emit) {
+  auto heightAt = [&](size_t i) { return heights && i < heights->size() ? (*heights)[i] : 0.0; };
   const size_t n = path.size() / 2;
   if (n < 2) return false;
   const double ws = t.worldSize();
@@ -215,11 +218,12 @@ bool layoutOnGround(Transform& t, const std::vector<double>& path, double anchor
   const double mx = path[seg * 2], my = path[seg * 2 + 1];
   const double ma = std::atan2(path[seg * 2 + 3] - my, path[seg * 2 + 2] - mx);
   double gp[2];
-  if (t.projectTo(gp, mx, my, 0) <= 0) return false;
+  const double midZ = heightAt(seg) * ws;
+  if (t.projectTo(gp, mx, my, midZ) <= 0) return false;
   const double x0s = gp[0];
-  if (t.projectTo(gp, mx + std::cos(ma) * unit * 8, my + std::sin(ma) * unit * 8, 0) <= 0) return false;
+  if (t.projectTo(gp, mx + std::cos(ma) * unit * 8, my + std::sin(ma) * unit * 8, midZ) <= 0) return false;
   const bool flip = keepUpright && gp[0] < x0s;
-  std::vector<double> placed(laid.glyphs.size() * 3);
+  std::vector<double> placed(laid.glyphs.size() * 4);
   double lastAngle = NAN;
   for (size_t k = 0; k < laid.glyphs.size(); k++) {
     const auto& g = laid.glyphs[k];
@@ -237,17 +241,18 @@ bool layoutOnGround(Transform& t, const std::vector<double>& path, double anchor
       if (diff > maxAngle) return false;
     }
     lastAngle = angle;
-    placed[k * 3] = ax + (bx - ax) * tt;
-    placed[k * 3 + 1] = ay + (by - ay) * tt;
-    placed[k * 3 + 2] = angle;
+    placed[k * 4] = ax + (bx - ax) * tt;
+    placed[k * 4 + 1] = ay + (by - ay) * tt;
+    placed[k * 4 + 2] = angle;
+    placed[k * 4 + 3] = (heightAt(seg) + (heightAt(seg + 1) - heightAt(seg)) * tt) * ws;
   }
   double frame[6];
   double corners[8];
   for (size_t k = 0; k < laid.glyphs.size(); k++) {
     const auto& g = laid.glyphs[k];
     const auto& m = g.m;
-    const double cs = std::cos(placed[k * 3 + 2]), sn = std::sin(placed[k * 3 + 2]);
-    if (t.groundFrame(placed[k * 3], placed[k * 3 + 1], 0, frame) <= 0) return false;
+    const double cs = std::cos(placed[k * 4 + 2]), sn = std::sin(placed[k * 4 + 2]);
+    if (t.groundFrame(placed[k * 4], placed[k * 4 + 1], placed[k * 4 + 3], frame) <= 0) return false;
     const double x0 = (m.left - m.advance / 2) * unit, x1 = x0 + m.width * unit;
     const double y0 = (m.top + kGlyphSize * 0.32) * unit, y1 = y0 + m.height * unit;
     for (int c = 0; c < 4; c++) {
@@ -492,7 +497,10 @@ std::shared_ptr<const Laid> LabelRenderer::computeLayout(const std::string& text
   return laid;
 }
 
-bool LabelRenderer::update(Transform& transform, const std::vector<SymbolLayerInput>& inputs, double now, uint64_t cameraVersion, double pixelRatio) {
+bool LabelRenderer::update(Transform& transform, const std::vector<SymbolLayerInput>& inputs, double now, uint64_t cameraVersion, double pixelRatio,
+                           const LabelTerrain* terrain) {
+  if ((terrain != nullptr) != (terrain_ != nullptr)) reflow_ = true;
+  terrain_ = terrain;
   std::string structure = "images:" + std::to_string(images.version);
   for (const auto& in : inputs) {
     structure += "," + in.layer->id + ":" + std::to_string(in.layer->revision) + ":" + std::to_string(in.layer->motion);
@@ -627,10 +635,12 @@ void LabelRenderer::placement(Transform& transform, const std::vector<SymbolLaye
         const double tx = labels.anchors[a] / extent, ty = labels.anchors[a + 1] / extent;
         if (tx < clip.x0 || tx >= clip.x1 || ty < clip.y0 || ty >= clip.y1) continue;
         const double wx = piece.wrap + (tile.x + tx) / n, wy = (tile.y + ty) / n;
-        const auto p = transform.project(wx, wy, 0);
+        const double wz = terrain_ ? terrain_->height(wx, wy) : 0;
+        const auto p = transform.project(wx, wy, wz * ws);
         const double depth = p.w / transform.cameraToCenterDistance();
         if (p.w <= 0 || depth > 2.2) continue;
         if (p.x < -margin || p.y < -margin || p.x > transform.width + margin || p.y > transform.height + margin) continue;
+        if (terrain_ && terrain_->hidden(wx, wy, wz)) continue;
         if (!ready) {
           ready = true;
           const std::string fa = layer.layoutValue("anchor", ctx).stringOr("center");
@@ -690,7 +700,7 @@ void LabelRenderer::placement(Transform& transform, const std::vector<SymbolLaye
           for (const auto& q : prior->second) near = near || std::hypot(q[0] - p.x, q[1] - p.y) < minDist;
           if (near) continue;
         }
-        std::vector<double> path, boxes;
+        std::vector<double> path, boxes, heights;
         const size_t ps = labels.pathStart[i], pe = labels.pathStart[i + 1];
         if (isLine && pe - ps >= 4) {
           path.resize(pe - ps);
@@ -698,14 +708,18 @@ void LabelRenderer::placement(Transform& transform, const std::vector<SymbolLaye
             path[k] = piece.wrap + (tile.x + labels.paths[ps + k] / extent) / n;
             path[k + 1] = (tile.y + labels.paths[ps + k + 1] / extent) / n;
           }
+          if (terrain_) {
+            heights.resize(path.size() / 2);
+            for (size_t k = 0; k < heights.size(); k++) heights[k] = terrain_->height(path[k * 2], path[k * 2 + 1]);
+          }
           if (!text.empty() && followLine && ground) {
-            const bool fits = layoutOnGround(transform, path, anchorDist, *laid, size, maxAngle, keepUpright, [&](const LaidGlyph&, const double* c, double) {
+            const bool fits = layoutOnGround(transform, path, anchorDist, *laid, size, terrain_ ? &heights : nullptr, maxAngle, keepUpright, [&](const LaidGlyph&, const double* c, double) {
               boxes.insert(boxes.end(), {std::min({c[0], c[2], c[4], c[6]}) + textShift[0] - padding, std::min({c[1], c[3], c[5], c[7]}) + textShift[1] - padding,
                                          std::max({c[0], c[2], c[4], c[6]}) + textShift[0] + padding, std::max({c[1], c[3], c[5], c[7]}) + textShift[1] + padding});
             });
             if (!fits) continue;
           } else if (!text.empty() && followLine) {
-            const auto quads = layoutAlongPath(transform, path, anchorDist, *laid, scale, maxAngle, keepUpright);
+            const auto quads = layoutAlongPath(transform, path, anchorDist, *laid, scale, terrain_ ? &heights : nullptr, maxAngle, keepUpright);
             if (!quads) continue;
             for (const auto& q : *quads) {
               const double half = size * 0.6 / 2 + padding;
@@ -834,8 +848,9 @@ void LabelRenderer::placement(Transform& transform, const std::vector<SymbolLaye
         l.line = followLine;
         l.wx = wx;
         l.wy = wy;
-        l.wz = 0;
+        l.wz = wz;
         l.path = std::move(path);
+        l.heights = std::move(heights);
         l.anchorDist = anchorDist;
         l.laid = laid;
         l.scale = scale;
@@ -870,14 +885,16 @@ void LabelRenderer::build(Transform& transform, double pixelRatio) {
   size_t visible = 0;
   for (auto& [key, label] : labels_) {
     if (label.opacity <= 0) continue;
-    const auto p = transform.project(label.wx, label.wy, 0);
+    const double lws = transform.worldSize();
+    const auto p = transform.project(label.wx, label.wy, label.wz * lws);
+    const std::vector<double>* lh = label.heights.empty() ? nullptr : &label.heights;
     if (label.icon && p.w > 0) {
       const IconPart& icon = *label.icon;
       if (const StyleImage* img = images.get(icon.id)) {
         double angle = icon.rotate;
         if (icon.alongLine && icon.alignMap && label.path.size() >= 4) {
-          const auto a = transform.project(label.path[0], label.path[1], 0);
-          const auto b = transform.project(label.path[2], label.path[3], 0);
+          const auto a = transform.project(label.path[0], label.path[1], lh ? (*lh)[0] * lws : 0);
+          const auto b = transform.project(label.path[2], label.path[3], lh ? (*lh)[1] * lws : 0);
           if (a.w > 0 && b.w > 0) angle += std::atan2(b.y - a.y, b.x - a.x);
         } else if (icon.alignMap) {
           angle -= transform.bearing() * kDeg;
@@ -911,7 +928,7 @@ void LabelRenderer::build(Transform& transform, double pixelRatio) {
     };
     if (label.line && !label.path.empty() && label.ground) {
       const size_t mark = textVertices_.size();
-      const bool fits = layoutOnGround(transform, label.path, label.anchorDist, laid, label.size, kPi / 4, true, [&](const LaidGlyph& g, const double* c, double scale) {
+      const bool fits = layoutOnGround(transform, label.path, label.anchorDist, laid, label.size, lh, kPi / 4, true, [&](const LaidGlyph& g, const double* c, double scale) {
         const auto& m = g.m;
         put(c[0], c[1], m.x, m.y, scale);
         put(c[2], c[3], m.x + m.width, m.y, scale);
@@ -923,7 +940,7 @@ void LabelRenderer::build(Transform& transform, double pixelRatio) {
       continue;
     }
     if (label.line && !label.path.empty()) {
-      const auto quads = layoutAlongPath(transform, label.path, label.anchorDist, laid, s);
+      const auto quads = layoutAlongPath(transform, label.path, label.anchorDist, laid, s, lh);
       if (!quads) continue;
       visible++;
       for (const auto& q : *quads) {
