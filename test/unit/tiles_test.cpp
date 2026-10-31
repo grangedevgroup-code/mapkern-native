@@ -134,6 +134,30 @@ TEST("cache: entries survive a restart and pinned ones survive eviction") {
   }
 }
 
+TEST("cache: entries from an earlier run are evicted before ones used now") {
+  namespace fs = std::filesystem;
+  const std::string dir = tempDir("mapkern-cache-order-test");
+  const std::string old = "https://example.org/old.pbf";
+  {
+    DiskCache cache(dir, 1 << 20);
+    cache.waitLoaded();
+    cache.write(old, std::make_shared<const Bytes>(Bytes(120000, 1)), "x", 0);
+    cache.flush();
+  }
+  std::error_code ec;
+  for (auto it = fs::recursive_directory_iterator(dir, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
+    if (it->is_regular_file()) fs::last_write_time(it->path(), fs::file_time_type::clock::now() - std::chrono::hours(1), ec);
+  DiskCache cache(dir, 1 << 20);
+  cache.waitLoaded();
+  EXPECT(cache.contains(old));
+  for (int i = 0; i < 8; i++) cache.write("https://example.org/new" + std::to_string(i), std::make_shared<const Bytes>(Bytes(120000, 2)), "x", 0);
+  cache.flush();
+  for (int i = 0; i < 100 && cache.stats().bytes > (1u << 20); i++) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  EXPECT(cache.stats().bytes <= (1u << 20));
+  EXPECT(!cache.contains(old));
+  EXPECT(cache.stats().entries == 7);
+}
+
 TEST("fetch: cache freshness from headers") {
   auto lookup = [](std::string control, std::string expires = "") {
     return HeaderLookup{[=](std::string_view n) { return n == "cache-control" ? control : n == "expires" ? expires : std::string(); }};
