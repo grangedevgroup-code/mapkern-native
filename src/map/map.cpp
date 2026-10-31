@@ -508,7 +508,14 @@ bool MapImpl::renderTarget(const FrameTarget& target) {
   const double start = nowMs();
   tick(start);
   if (!graphics) return false;
+  RenderView view;
+  view.zoom = transform.zoom();
+  view.bearing = transform.bearing();
+  view.width = transform.width;
+  view.height = transform.height;
+  view.tileMatrix = [this](int z, int x, int y, int wrap, double extent) { return transform.tileMatrix(z, x, y, wrap, extent); };
   FrameInput frame;
+  frame.view = &view;
   frame.transform = &transform;
   frame.layers = &layers;
   frame.sources = &sources;
@@ -517,7 +524,7 @@ bool MapImpl::renderTarget(const FrameTarget& target) {
   frame.now = start;
   frame.clearColor = {0, 0, 0, 0};
   painter.render(frame, target);
-  dirty = false;
+  dirty = painter.drapesBehind();
   lastFrameMs = nowMs() - start;
   return true;
 }
