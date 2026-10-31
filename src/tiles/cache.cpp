@@ -7,6 +7,7 @@
 #include <filesystem>
 
 #include "core/url.hpp"
+#include "net/http.hpp"
 
 namespace fs = std::filesystem;
 
@@ -108,7 +109,7 @@ bool cacheable(const std::string& url) {
   return !(host == "localhost" || host == "127.0.0.1" || host.starts_with("[::1]") || host.ends_with(".localhost"));
 }
 
-bool offline() { return forcedOffline.load() || !networkReachableFlag(); }
+bool offline() { return forcedOffline.load() || !networkReachable(); }
 
 void setOffline(bool value) { forcedOffline.store(value); }
 
@@ -163,7 +164,8 @@ void DiskCache::load() {
       if (stop_) return;
     }
     if (!it->is_regular_file(ec) || it->path().extension() != ".mkc") continue;
-    std::FILE* f = openFile(it->path().u8string(), "rb");
+    const auto u8 = it->path().u8string();
+    std::FILE* f = openFile(std::string(u8.begin(), u8.end()), "rb");
     if (!f) continue;
     uint8_t head[24];
     if (std::fread(head, 1, sizeof head, f) == sizeof head && std::memcmp(head, kMagic, 4) == 0) {
@@ -317,7 +319,7 @@ void DiskCache::writer() {
       auto it = pending_.find(url);
       if (it != pending_.end() && it->second.data == p.data) pending_.erase(it);
       if (!ok) continue;
-      const uint64_t size = 32 + url.size() + p.type.size() + p.data->size();
+      const uint64_t size = 28 + url.size() + p.type.size() + p.data->size();
       Row& row = entries_[url];
       total_ += size - row.size;
       row.size = size;
