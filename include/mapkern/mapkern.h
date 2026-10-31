@@ -115,6 +115,7 @@ MK_API void mk_map_project(const mk_map* map, double lng, double lat, double* x,
 MK_API void mk_map_pointer_down(mk_map* map, int id, double x, double y);
 MK_API void mk_map_pointer_move(mk_map* map, int id, double x, double y);
 MK_API void mk_map_pointer_up(mk_map* map, int id, double x, double y);
+MK_API void mk_map_pointer_cancel(mk_map* map, int id);
 MK_API void mk_map_wheel(mk_map* map, double delta, double x, double y);
 MK_API void mk_map_double_tap(mk_map* map, double x, double y);
 MK_API void mk_map_zoom_by(mk_map* map, double delta, double x, double y, int animate);
