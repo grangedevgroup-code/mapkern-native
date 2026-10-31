@@ -35,11 +35,12 @@ std::optional<DemGrid> decodeDem(const uint8_t* rgba, int size, const Unpack& un
 int removeSpikes(std::vector<float>& values, int size, double threshold);
 std::optional<DemGrid> decodeElevations(const float* values, size_t count, int size);
 bool backfill(DemGrid& target, const DemGrid& source, int dx, int dy);
-std::vector<float> gradients(const DemGrid& grid);
+std::vector<uint16_t> gradients(const DemGrid& grid);
 std::vector<FrameStrip> frameStrips(const DemGrid& grid);
-void writeFrame(const DemGrid& grid, std::vector<float>& out);
+void writeFrame(const DemGrid& grid, std::vector<uint16_t>& out);
 std::optional<double> sampleElevation(const DemGrid& grid, double u, double v);
 std::vector<uint16_t> toHalf(const std::vector<float>& values);
+float fromHalf(uint16_t h);
 bool isRawElevation(const uint8_t* bytes, size_t size);
 
 }
