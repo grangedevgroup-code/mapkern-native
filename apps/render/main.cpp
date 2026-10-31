@@ -33,41 +33,48 @@ struct Args {
 
 const char* kDem = R"j({"type":"dem","tiles":["https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"],"tileSize":512,"maxZoom":12,"encoding":"terrarium","attribution":"Mapterhorn"})j";
 
-double num(int argc, char** argv, int& i) { return i + 1 < argc ? std::atof(argv[++i]) : 0; }
+struct ArgReader {
+  std::vector<std::string> items;
+  size_t at = 0;
+  bool more() const { return at < items.size(); }
+  std::string next() { return at < items.size() ? items[at++] : std::string(); }
+  double number() { return std::atof(next().c_str()); }
+};
 
 }
 
 int main(int argc, char** argv) {
   Args a;
   a.options.fadeDuration = 0;
-  for (int i = 1; i < argc; i++) {
-    const std::string s = argv[i];
-    if (s == "--style" && i + 1 < argc) a.options.style = argv[++i];
+  ArgReader r{{argv + 1, argv + argc}};
+  while (r.more()) {
+    const std::string s = r.next();
+    if (s == "--style") a.options.style = r.next();
     else if (s == "--center") {
-      a.options.lng = num(argc, argv, i);
-      a.options.lat = num(argc, argv, i);
-    } else if (s == "--zoom") a.options.zoom = num(argc, argv, i);
-    else if (s == "--pitch") a.options.pitch = num(argc, argv, i);
-    else if (s == "--bearing") a.options.bearing = num(argc, argv, i);
+      a.options.lng = r.number();
+      a.options.lat = r.number();
+    } else if (s == "--zoom") a.options.zoom = r.number();
+    else if (s == "--pitch") a.options.pitch = r.number();
+    else if (s == "--bearing") a.options.bearing = r.number();
     else if (s == "--size") {
-      a.width = static_cast<int>(num(argc, argv, i));
-      a.height = static_cast<int>(num(argc, argv, i));
-    } else if (s == "--ratio") a.ratio = num(argc, argv, i);
-    else if (s == "--out" && i + 1 < argc) a.out = argv[++i];
+      a.width = static_cast<int>(r.number());
+      a.height = static_cast<int>(r.number());
+    } else if (s == "--ratio") a.ratio = r.number();
+    else if (s == "--out") a.out = r.next();
     else if (s == "--flat") a.options.globe = false;
     else if (s == "--offline") a.options.offline = true;
-    else if (s == "--cache" && i + 1 < argc) a.options.cacheDirectory = argv[++i];
-    else if (s == "--timeout") a.timeoutMs = num(argc, argv, i);
-    else if (s == "--terrain") a.terrain = num(argc, argv, i);
+    else if (s == "--cache") a.options.cacheDirectory = r.next();
+    else if (s == "--timeout") a.timeoutMs = r.number();
+    else if (s == "--terrain") a.terrain = r.number();
     else if (s == "--hillshade") a.hillshade = true;
     else if (s == "--controls") a.options.controls = true;
     else if (s == "--tap") {
-      const double x = num(argc, argv, i);
-      const double y = num(argc, argv, i);
+      const double x = r.number();
+      const double y = r.number();
       a.taps.push_back({x, y});
     }
     else if (s == "--mouse") a.options.touchControls = false;
-    else if (s == "--view" && i + 1 < argc) a.options.view = argv[++i];
+    else if (s == "--view") a.options.view = r.next();
   }
   a.options.pixelRatio = a.ratio;
   const int pw = static_cast<int>(a.width * a.ratio), ph = static_cast<int>(a.height * a.ratio);
