@@ -124,7 +124,15 @@ std::optional<std::vector<uint8_t>> LocalFonts::sdf(const FontSpec& font, uint32
   Face* f = face(font.bold, font.italic);
   if (!f) f = face(false, false);
   if (!f) return std::nullopt;
-  const float scale = stbtt_ScaleForPixelHeight(&f->info, static_cast<float>(size * 1.17));
+  if (stbtt_FindGlyphIndex(&f->info, static_cast<int>(codepoint)) == 0 && codepoint > 0x20) {
+    f = fallback(codepoint);
+    if (!f) {
+      width = height = 0;
+      left = top = advance = 0;
+      return std::vector<uint8_t>{};
+    }
+  }
+  const float scale = stbtt_ScaleForMappingEmToPixels(&f->info, static_cast<float>(size));
   int adv = 0, lsb = 0;
   stbtt_GetCodepointHMetrics(&f->info, static_cast<int>(codepoint), &adv, &lsb);
   advance = adv * scale;
@@ -146,6 +154,48 @@ std::optional<std::vector<uint8_t>> LocalFonts::sdf(const FontSpec& font, uint32
   top = yoff;
   (void)ascent;
   return out;
+}
+
+LocalFonts::Face* LocalFonts::fallback(uint32_t codepoint) {
+  if (!fallbacksLoaded_) {
+    fallbacksLoaded_ = true;
+    std::vector<std::string> paths;
+#ifdef _WIN32
+    const char* windir = std::getenv("WINDIR");
+    const std::string d = std::string(windir ? windir : "C:/Windows") + "/Fonts/";
+    for (const char* n : {"seguisym.ttf", "gadugi.ttf", "Nirmala.ttf", "msyh.ttc", "YuGothR.ttc", "malgun.ttf", "ebrima.ttf", "taile.ttf",
+                          "himalaya.ttf", "mmrtext.ttf", "msuighur.ttf", "seguihis.ttf", "arialuni.ttf", "tahoma.ttf"})
+      paths.push_back(d + n);
+#elif defined(__ANDROID__)
+    for (const char* n : {"NotoSansCJK-Regular.ttc", "NotoSansSymbols-Regular-Subsetted.ttf", "NotoSansCanadianAboriginal-Regular.ttf",
+                          "NotoSansDevanagari-Regular.otf", "NotoSansThai-Regular.ttf", "NotoNaskhArabic-Regular.ttf", "NotoSansHebrew-Regular.ttf",
+                          "NotoSansEthiopic-Regular.ttf", "NotoSansArmenian-Regular.otf", "NotoSansGeorgian-Regular.otf", "DroidSansFallback.ttf"})
+      paths.push_back(std::string("/system/fonts/") + n);
+#elif defined(__APPLE__)
+    for (const char* n : {"/System/Library/Fonts/PingFang.ttc", "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+                          "/System/Library/Fonts/AppleSDGothicNeo.ttc", "/System/Library/Fonts/Supplemental/EuphemiaCAS.ttc"})
+      paths.push_back(n);
+#else
+    for (const char* n : {"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "/usr/share/fonts/truetype/noto/NotoSansCanadianAboriginal-Regular.ttf",
+                          "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf", "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+                          "/usr/share/fonts/truetype/unifont/unifont.ttf"})
+      paths.push_back(n);
+#endif
+    for (const auto& path : paths) {
+      auto bytes = readFile(path);
+      if (!bytes) continue;
+      auto f = std::make_unique<Face>();
+      f->data = std::move(*bytes);
+      const int offset = stbtt_GetFontOffsetForIndex(f->data.data(), 0);
+      if (offset >= 0 && stbtt_InitFont(&f->info, f->data.data(), offset)) {
+        f->ok = true;
+        fallbacks_.push_back(std::move(f));
+      }
+    }
+  }
+  for (auto& f : fallbacks_)
+    if (stbtt_FindGlyphIndex(&f->info, static_cast<int>(codepoint)) != 0) return f.get();
+  return nullptr;
 }
 
 std::unordered_map<uint32_t, ServerGlyph> decodeGlyphs(const Bytes& bytes) {
