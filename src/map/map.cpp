@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <set>
 
 #include "core/url.hpp"
@@ -745,6 +746,15 @@ void Map::setProjection(bool g) {
   impl_->invalidate();
 }
 bool Map::globe() const { return impl_->transform.projection() == Projection::Globe; }
+void Map::setTerrain(const std::string& sourceId, double exaggeration, double relief) {
+  impl_->setTerrain(Value(Object{{"source", sourceId}, {"exaggeration", exaggeration}, {"relief", relief}}));
+}
+void Map::clearTerrain() { impl_->setTerrain(Value()); }
+bool Map::terrain() const { return impl_->terrain != nullptr; }
+std::optional<double> Map::elevationAt(double lng, double lat) const {
+  if (!impl_->terrain) return std::nullopt;
+  return impl_->terrain->elevationAt(mercatorX(lng), mercatorY(clampLatitude(lat)));
+}
 void Map::panBy(double dx, double dy) {
   auto& t = impl_->transform;
   const auto c = t.centerPoint();
