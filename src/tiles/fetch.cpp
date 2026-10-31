@@ -167,6 +167,7 @@ RequestParameters resolveRequest(const std::string& url, ResourceKind kind, cons
 
 void fetchBytes(const RequestParameters& params, CancelToken cancel, int timeoutMs, ResourceKind kind,
                 std::shared_ptr<ResponseStore> store, FetchCallback callback) {
+  diag::request(static_cast<int>(kind));
   if (auto handler = protocolFor(params.url)) {
     workerPool().submit([handler = *handler, params, kind, cancel, callback]() {
       FetchOutcome out;
@@ -179,12 +180,17 @@ void fetchBytes(const RequestParameters& params, CancelToken cancel, int timeout
         f.retryable = true;
         out = f;
       }
+      if (const auto* r = std::get_if<FetchResult>(&out); r && r->data) diag::localServed(r->data->size());
       callback(std::move(out));
     });
     return;
   }
   if (isLocalPath(params.url)) {
-    workerPool().submit([path = localPath(params.url), callback]() { callback(fileOutcome(path)); });
+    workerPool().submit([path = localPath(params.url), callback]() {
+      FetchOutcome out = fileOutcome(path);
+      if (const auto* r = std::get_if<FetchResult>(&out); r && r->data) diag::localServed(r->data->size());
+      callback(std::move(out));
+    });
     return;
   }
   std::shared_ptr<ResponseStore> cache = store && cacheable(params.url) ? store : nullptr;
