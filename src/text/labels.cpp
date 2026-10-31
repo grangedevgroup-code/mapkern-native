@@ -501,11 +501,6 @@ bool LabelRenderer::update(Transform& transform, const std::vector<SymbolLayerIn
                            const LabelTerrain* terrain) {
   if ((terrain != nullptr) != hadTerrain_) reflow_ = true;
   hadTerrain_ = terrain != nullptr;
-  struct Scope {
-    const LabelTerrain*& slot;
-    ~Scope() { slot = nullptr; }
-  } scope{terrain_};
-  terrain_ = terrain;
   std::string structure = "images:" + std::to_string(images.version);
   for (const auto& in : inputs) {
     structure += "," + in.layer->id + ":" + std::to_string(in.layer->revision) + ":" + std::to_string(in.layer->motion);
@@ -516,7 +511,7 @@ bool LabelRenderer::update(Transform& transform, const std::vector<SymbolLayerIn
   if (structure != placedStructure_ || pendingGlyphs_ || reflow_ ||
       (cameraVersion != placedCamera_ && now - lastPlacement_ >= kPlaceInterval)) {
     reflow_ = false;
-    placement(transform, inputs, now);
+    placement(transform, inputs, now, terrain);
     placedStructure_ = structure;
     placedCamera_ = cameraVersion;
     lastPlacement_ = now;
@@ -538,7 +533,7 @@ bool LabelRenderer::update(Transform& transform, const std::vector<SymbolLayerIn
   return animating;
 }
 
-void LabelRenderer::placement(Transform& transform, const std::vector<SymbolLayerInput>& inputs, double now) {
+void LabelRenderer::placement(Transform& transform, const std::vector<SymbolLayerInput>& inputs, double now, const LabelTerrain* surface) {
   CollisionGrid grid(transform.width, transform.height);
   std::unordered_map<std::string, std::vector<std::array<double, 2>>> placed;
   std::unordered_set<std::string> visible;
@@ -640,12 +635,12 @@ void LabelRenderer::placement(Transform& transform, const std::vector<SymbolLaye
         const double tx = labels.anchors[a] / extent, ty = labels.anchors[a + 1] / extent;
         if (tx < clip.x0 || tx >= clip.x1 || ty < clip.y0 || ty >= clip.y1) continue;
         const double wx = piece.wrap + (tile.x + tx) / n, wy = (tile.y + ty) / n;
-        const double wz = terrain_ ? terrain_->height(wx, wy) : 0;
+        const double wz = surface ? surface->height(wx, wy) : 0;
         const auto p = transform.project(wx, wy, wz * ws);
         const double depth = p.w / transform.cameraToCenterDistance();
         if (p.w <= 0 || depth > 2.2) continue;
         if (p.x < -margin || p.y < -margin || p.x > transform.width + margin || p.y > transform.height + margin) continue;
-        if (terrain_ && terrain_->hidden(wx, wy, wz)) continue;
+        if (surface && surface->hidden(wx, wy, wz)) continue;
         if (!ready) {
           ready = true;
           const std::string fa = layer.layoutValue("anchor", ctx).stringOr("center");
@@ -713,18 +708,18 @@ void LabelRenderer::placement(Transform& transform, const std::vector<SymbolLaye
             path[k] = piece.wrap + (tile.x + labels.paths[ps + k] / extent) / n;
             path[k + 1] = (tile.y + labels.paths[ps + k + 1] / extent) / n;
           }
-          if (terrain_) {
+          if (surface) {
             heights.resize(path.size() / 2);
-            for (size_t k = 0; k < heights.size(); k++) heights[k] = terrain_->height(path[k * 2], path[k * 2 + 1]);
+            for (size_t k = 0; k < heights.size(); k++) heights[k] = surface->height(path[k * 2], path[k * 2 + 1]);
           }
           if (!text.empty() && followLine && ground) {
-            const bool fits = layoutOnGround(transform, path, anchorDist, *laid, size, terrain_ ? &heights : nullptr, maxAngle, keepUpright, [&](const LaidGlyph&, const double* c, double) {
+            const bool fits = layoutOnGround(transform, path, anchorDist, *laid, size, surface ? &heights : nullptr, maxAngle, keepUpright, [&](const LaidGlyph&, const double* c, double) {
               boxes.insert(boxes.end(), {std::min({c[0], c[2], c[4], c[6]}) + textShift[0] - padding, std::min({c[1], c[3], c[5], c[7]}) + textShift[1] - padding,
                                          std::max({c[0], c[2], c[4], c[6]}) + textShift[0] + padding, std::max({c[1], c[3], c[5], c[7]}) + textShift[1] + padding});
             });
             if (!fits) continue;
           } else if (!text.empty() && followLine) {
-            const auto quads = layoutAlongPath(transform, path, anchorDist, *laid, scale, terrain_ ? &heights : nullptr, maxAngle, keepUpright);
+            const auto quads = layoutAlongPath(transform, path, anchorDist, *laid, scale, surface ? &heights : nullptr, maxAngle, keepUpright);
             if (!quads) continue;
             for (const auto& q : *quads) {
               const double half = size * 0.6 / 2 + padding;
