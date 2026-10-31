@@ -51,6 +51,10 @@ void Gpu::setup(const sg_environment& environment) {
   shaders_[static_cast<int>(Program::Line)] = sg_make_shader(mk_line_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::Circle)] = sg_make_shader(mk_circle_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::Extrusion)] = sg_make_shader(mk_extrusion_shader_desc(sg_query_backend()));
+  shaders_[static_cast<int>(Program::FillClip)] = sg_make_shader(mk_fill_clip_shader_desc(sg_query_backend()));
+  shaders_[static_cast<int>(Program::LineClip)] = sg_make_shader(mk_line_clip_shader_desc(sg_query_backend()));
+  shaders_[static_cast<int>(Program::CircleClip)] = sg_make_shader(mk_circle_clip_shader_desc(sg_query_backend()));
+  shaders_[static_cast<int>(Program::ExtrusionClip)] = sg_make_shader(mk_extrusion_clip_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::Raster)] = sg_make_shader(mk_raster_shader_desc(sg_query_backend()));
   const float quad[] = {0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1};
   sg_buffer_desc q{};
@@ -192,11 +196,13 @@ sg_pipeline Gpu::pipeline(const PipelineKey& key) {
       layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
       break;
     case Program::Fill:
+    case Program::FillClip:
       layout.buffers[0].stride = 8;
       layout.attrs[ATTR_mk_fill_a_pos] = {0, 0, SG_VERTEXFORMAT_SHORT2};
       layout.attrs[ATTR_mk_fill_a_feature] = {0, 4, SG_VERTEXFORMAT_UINT};
       break;
     case Program::Line:
+    case Program::LineClip:
       layout.buffers[0].stride = 20;
       layout.attrs[ATTR_mk_line_a_pos] = {0, 0, SG_VERTEXFORMAT_SHORT2};
       layout.attrs[ATTR_mk_line_a_extrude] = {0, 4, SG_VERTEXFORMAT_SHORT2};
@@ -205,12 +211,14 @@ sg_pipeline Gpu::pipeline(const PipelineKey& key) {
       layout.attrs[ATTR_mk_line_a_feature] = {0, 16, SG_VERTEXFORMAT_UINT};
       break;
     case Program::Circle:
+    case Program::CircleClip:
       layout.buffers[0].stride = 12;
       layout.attrs[ATTR_mk_circle_a_pos] = {0, 0, SG_VERTEXFORMAT_SHORT2};
       layout.attrs[ATTR_mk_circle_a_corner] = {0, 4, SG_VERTEXFORMAT_BYTE4};
       layout.attrs[ATTR_mk_circle_a_feature] = {0, 8, SG_VERTEXFORMAT_UINT};
       break;
     case Program::Extrusion:
+    case Program::ExtrusionClip:
       layout.buffers[0].stride = 12;
       layout.attrs[ATTR_mk_extrusion_a_pos] = {0, 0, SG_VERTEXFORMAT_SHORT2};
       layout.attrs[ATTR_mk_extrusion_a_normal] = {0, 4, SG_VERTEXFORMAT_BYTE4};
