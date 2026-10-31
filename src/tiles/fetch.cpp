@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 #include "core/url.hpp"
+#include "diag/diagnostics.hpp"
 #include "net/http.hpp"
 
 namespace mapkern {
