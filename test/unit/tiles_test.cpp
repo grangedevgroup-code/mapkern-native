@@ -178,5 +178,5 @@ TEST("net: real HTTPS request (MAPKERN_NET_TESTS=1)") {
   for (int i = 0; i < 400 && done == 0; i++) std::this_thread::sleep_for(std::chrono::milliseconds(50));
   setOffline(false);
   auto* c = std::get_if<FetchResult>(&second);
-  EXPECT(c && c->fromCache && c->data && c->data->size() == r->data->size());
+  EXPECT(r && c && c->fromCache && c->data && c->data->size() == r->data->size());
 }
