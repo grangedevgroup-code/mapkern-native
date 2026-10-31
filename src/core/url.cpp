@@ -9,7 +9,7 @@ bool hasScheme(std::string_view url) {
   if (url.empty() || !std::isalpha(static_cast<unsigned char>(url[0]))) return false;
   for (size_t i = 1; i < url.size(); i++) {
     const char c = url[i];
-    if (c == ':') return i > 1 || url.size() == 2 || url[2] != '\\';
+    if (c == ':') return i > 1;
     if (!std::isalnum(static_cast<unsigned char>(c)) && c != '+' && c != '-' && c != '.') return false;
   }
   return false;
