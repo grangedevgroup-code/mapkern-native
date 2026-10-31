@@ -55,6 +55,7 @@ class MapImpl {
   void wheel(double delta, double x, double y);
 
   void addSource(const std::string& id, const Value& spec);
+  void loadSprite(const Value& sprite);
   void removeSource(const std::string& id);
   void addLayer(const Value& spec, const std::string& beforeId);
   void removeLayer(const std::string& id);
