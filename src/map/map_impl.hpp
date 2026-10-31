@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -19,6 +20,7 @@
 #include "render/paint_table.hpp"
 #include "style/layer.hpp"
 #include "terrain/terrain.hpp"
+#include "ui/overlay.hpp"
 #include "tiles/cache.hpp"
 #include "tiles/scheduler.hpp"
 
@@ -67,6 +69,11 @@ class MapImpl {
   std::string attribution() const;
   MapStats stats() const;
   void updateTerrain();
+  void setupControls();
+  void ensureDemoTerrain();
+  void setView(const std::string& view);
+  std::string currentView();
+  void updateOverlay();
   std::optional<double> cameraFloor(Terrain& terrain);
   double nearPeak(Terrain& terrain);
   void setTerrain(const Value& spec);
@@ -85,6 +92,8 @@ class MapImpl {
   bool styleLoaded = false;
   FeatureStates states;
   std::unique_ptr<Terrain> terrain;
+  std::unique_ptr<ui::Overlay> overlay;
+  std::set<int> overlayPointers;
   Painter painter;
   bool graphics = false;
   bool dirty = true;
