@@ -145,9 +145,8 @@ class MapView @JvmOverloads constructor(
     private external fun nativeSurfaceCreated(handle: Long)
     private external fun nativeResize(handle: Long, width: Int, height: Int, ratio: Double)
     private external fun nativeRender(handle: Long, width: Int, height: Int): Boolean
-    private external fun nativePointer(handle: Long, action: Int, id: Int, x: Double, y: Double)
+    private external fun nativePointer(handle: Long, action: Int, id: Int, x: Double, y: Double, time: Double)
     private external fun nativeZoomBy(handle: Long, delta: Double, x: Double, y: Double)
-    private external fun nativeDoubleTap(handle: Long, x: Double, y: Double)
     private external fun nativeSetStyle(handle: Long, style: String)
     private external fun nativeFlyTo(handle: Long, lng: Double, lat: Double, zoom: Double, bearing: Double, pitch: Double)
     private external fun nativeSetProjection(handle: Long, globe: Boolean)
