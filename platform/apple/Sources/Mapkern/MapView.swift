@@ -263,7 +263,7 @@ public final class MapView: MTKView, MTKViewDelegate {
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) { send(touches, 0) }
     public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) { send(touches, 1) }
     public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { send(touches, 2) }
-    public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { send(touches, 2) }
+    public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { send(touches, 3) }
     #else
     public override var acceptsFirstResponder: Bool { true }
 
