@@ -284,6 +284,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_native
   h->map->impl().shutdownGraphics();
   h->map->impl().initGraphicsNative(env);
   h->graphics = true;
+  h->gpu.reset();
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeResize(JNIEnv*, jobject, jlong ptr, jint w, jint hgt, jdouble ratio) {
