@@ -151,7 +151,7 @@ TEST("expression: feature state only in paint") {
 TEST("expression: strings") {
   Ctx c(R"({"name":"Mount Rainier"})");
   EXPECT(run(R"(["upcase",["get","name"]])", c.eval) == Value("MOUNT RAINIER"));
-  EXPECT(run(R"(["concat",["get","name"]," (",4392," m)"])", c.eval) == Value("Mount Rainier (4392 m)"));
+  EXPECT(run(R"j(["concat",["get","name"]," (",4392," m)"])j", c.eval) == Value("Mount Rainier (4392 m)"));
   EXPECT(run(R"(["slice",["get","name"],6])", c.eval) == Value("Rainier"));
   EXPECT(run(R"(["to-string",3])") == Value("3"));
   EXPECT(run(R"(["to-number","12.5"])") == Value(12.5));
