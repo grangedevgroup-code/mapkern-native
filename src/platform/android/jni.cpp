@@ -216,11 +216,12 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_grangedevgroup_mapkern_MapView_na
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativePointer(JNIEnv*, jobject, jlong ptr, jint action, jint id, jdouble x,
-                                                                                       jdouble y) {
+                                                                                       jdouble y, jdouble time) {
   auto& map = *handle(ptr)->map;
-  if (action == 0) map.pointerDown(id, x, y);
-  else if (action == 1) map.pointerMove(id, x, y);
-  else map.pointerUp(id, x, y);
+  if (action == 0) map.pointerDown(id, x, y, time);
+  else if (action == 1) map.pointerMove(id, x, y, time);
+  else if (action == 2) map.pointerUp(id, x, y, time);
+  else map.pointerCancel(id);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeZoomBy(JNIEnv*, jobject, jlong ptr, jdouble delta, jdouble x, jdouble y) {
