@@ -187,12 +187,10 @@ void DiskCache::load() {
         std::string url(urlLen, '\0');
         if (std::fread(url.data(), 1, urlLen, f) == urlLen) {
           Row row;
-          row.size = it->file_size(ec);
-          const auto mtime = it->last_write_time(ec);
-          row.used = static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(mtime.time_since_epoch()).count());
+          row.size = size;
+          row.used = fileTimeMs(mtime);
           row.expires = expires;
           row.pinned = pinned;
-          total += row.size;
           found[url] = row;
         }
       }
