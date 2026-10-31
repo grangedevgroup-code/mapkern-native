@@ -46,7 +46,7 @@ Mapkern reads its own style format and MapLibre/Mapbox v8 styles, which it conve
 
 ## Headless frames
 
-`mapkern-render` (Windows) draws a map off screen and writes a PNG once every tile has loaded. It's how the screenshots in issues are made:
+`mapkern-render` (Windows) draws a map off screen and writes a PNG once every tile has loaded, which is handy for checking a style or a change without opening a window:
 
 ```sh
 mapkern-render --center -121.76 46.85 --zoom 11 --pitch 60 --terrain 1.5 --out rainier.png
