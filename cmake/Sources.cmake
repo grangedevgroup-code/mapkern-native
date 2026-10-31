@@ -25,5 +25,10 @@ set(MAPKERN_CORE_SOURCES
 )
 
 set(MAPKERN_RENDER_SOURCES
+  src/map/map.cpp
+  src/map/raster_source.cpp
+  src/map/vector_source.cpp
   src/render/gpu.cpp
+  src/render/paint_table.cpp
+  src/render/painter.cpp
 )
