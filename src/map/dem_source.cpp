@@ -172,7 +172,7 @@ void DemSource::start(TileSet set) {
   options.fadeDuration = ctx_.fadeDuration;
   options.backstopLevels = {2, 4};
   options.maxRetries = 3;
-  options.cacheBytes = ctx_.cacheBytes;
+  options.cacheBytes = cacheBudget();
   options.failureCooldownMs = 120000;
   options.prefetchLimit = ctx_.prefetchLimit;
   manager = std::make_unique<TileManager<DemTileData>>(id, tiling, loader_, *ctx_.scheduler, options, tileEvents());
