@@ -3,7 +3,12 @@
 #include <charconv>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+
+#if defined(__APPLE__)
+#include <xlocale.h>
+#endif
 
 namespace mapkern {
 
