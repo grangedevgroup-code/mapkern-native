@@ -128,6 +128,11 @@ in vec4 v_shape;
 in float v_dist;
 in vec4 v_color;
 out vec4 frag_color;
+float dash_at(int i) {
+  vec4 g = i < 4 ? u_dash[0] : u_dash[1];
+  int k = i - (i / 4) * 4;
+  return k == 0 ? g.x : k == 1 ? g.y : k == 2 ? g.z : g.w;
+}
 void main() {
   float half_width = v_shape.y;
   float gap = v_shape.z;
@@ -143,7 +148,7 @@ void main() {
     float on = 0.0;
     for (int i = 0; i < 8; i++) {
       if (i >= count) break;
-      float len = u_dash[i / 4][i % 4];
+      float len = dash_at(i);
       if (t >= start && t < start + len) {
         float inside = min(t - start, start + len - t) * unit;
         on = (i % 2 == 0) ? clamp(inside + 0.5, 0.0, 1.0) : 1.0 - clamp(inside + 0.5, 0.0, 1.0);
@@ -271,13 +276,14 @@ void main() {
 @vs raster_vs
 layout(binding=0) uniform raster_vs_params {
   mat4 u_matrix;
-  vec4 u_uv;
+  vec4 u_clip;
 };
 in vec2 a_pos;
 out vec2 v_uv;
 void main() {
-  v_uv = u_uv.xy + a_pos * u_uv.zw;
-  gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
+  vec2 p = mix(u_clip.xy, u_clip.zw, a_pos);
+  v_uv = p;
+  gl_Position = u_matrix * vec4(p, 0.0, 1.0);
 }
 @end
 
@@ -297,8 +303,8 @@ void main() {
   vec4 c = texture(sampler2D(raster_tex, raster_smp), v_uv);
   vec3 rgb = c.a > 0.0 ? c.rgb / c.a : vec3(0.0);
   rgb = vec3(dot(u_hue0.xyz, rgb), dot(u_hue1.xyz, rgb), dot(u_hue2.xyz, rgb));
-  float average = (rgb.r + rgb.g + rgb.b) / 3.0;
-  rgb += (average - rgb) * u_adjust.z;
+  float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+  rgb = mix(vec3(lum), rgb, 1.0 + u_adjust.z);
   rgb = (rgb - 0.5) * u_adjust.w + 0.5;
   rgb = mix(vec3(u_adjust.x), vec3(u_adjust.y), clamp(rgb, 0.0, 1.0));
   frag_color = vec4(rgb * c.a, c.a) * u_adjust2.x;
