@@ -524,16 +524,21 @@ bool Painter::render(const FrameInput& frame, const FrameTarget& target) {
     clear = premultiply(layers[0]->paintColor("color", ctx), layers[0]->paintNumber("opacity", ctx));
     start = 1;
   }
-  if (globe) {
+  const bool terrain = frame.terrain && !globe;
+  if (globe || terrain) {
     ensureMeshes();
-    CoverOptions cover;
-    cover.tileSize = 512;
-    cover.minZoom = 0;
-    cover.maxZoom = std::min(22, static_cast<int>(std::ceil(t.maxZoom)));
-    cover.round = true;
-    slots = t.coveringTiles(cover);
+    if (frame.terrain) {
+      for (const auto& s : frame.terrain->slots) slots.push_back(s.cover);
+    } else {
+      CoverOptions cover;
+      cover.tileSize = 512;
+      cover.minZoom = 0;
+      cover.maxZoom = std::min(22, static_cast<int>(std::ceil(t.maxZoom)));
+      cover.round = true;
+      slots = t.coveringTiles(cover);
+    }
     renderDrapes(frame, slots);
-    renderPoles(slots);
+    if (globe) renderPoles(slots);
   } else {
     drapesBehind_ = false;
   }
@@ -706,7 +711,7 @@ void Painter::drawHillshade(const FrameInput& frame, const StyleLayer& layer, De
     b.vertex_buffers[0] = gpu.quad();
     b.views[VIEW_mk_gradient_tex] = gradient->view;
     b.samplers[SMP_mk_gradient_smp] = gpu.sampler(true);
-    b.views[VIEW_mk_mask_tex] = data->maskTexture.valid() ? data->maskTexture.view : gpu.whiteTexture().view;
+    b.views[VIEW_mk_mask_tex] = data->maskTexture.valid() ? data->maskTexture.view : gpu.blankTexture().view;
     b.samplers[SMP_mk_mask_smp] = gpu.sampler(true);
     sg_apply_bindings(&b);
     mk_raster_vs_params_t vs{};
