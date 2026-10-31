@@ -3,6 +3,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "map/map_impl.hpp"
 #include "mapkern/map.hpp"
@@ -111,31 +112,38 @@ void event(const sapp_event* e) {
   }
 }
 
-double arg(int argc, char** argv, int& i) { return i + 1 < argc ? std::atof(argv[++i]) : 0; }
+struct ArgReader {
+  std::vector<std::string> items;
+  size_t at = 0;
+  bool more() const { return at < items.size(); }
+  std::string next() { return at < items.size() ? items[at++] : std::string(); }
+  double number() { return std::atof(next().c_str()); }
+};
 
 }
 
 sapp_desc sokol_main(int argc, char* argv[]) {
   viewer.options.controls = true;
   viewer.options.touchControls = false;
-  for (int i = 1; i < argc; i++) {
-    const std::string a = argv[i];
-    if (a == "--style" && i + 1 < argc) viewer.options.style = argv[++i];
-    else if (a == "--center" && i + 2 < argc) {
-      viewer.options.lng = arg(argc, argv, i);
-      viewer.options.lat = arg(argc, argv, i);
-    } else if (a == "--zoom") viewer.options.zoom = arg(argc, argv, i);
-    else if (a == "--pitch") viewer.options.pitch = arg(argc, argv, i);
-    else if (a == "--bearing") viewer.options.bearing = arg(argc, argv, i);
+  ArgReader r{{argv + 1, argv + argc}};
+  while (r.more()) {
+    const std::string a = r.next();
+    if (a == "--style") viewer.options.style = r.next();
+    else if (a == "--center") {
+      viewer.options.lng = r.number();
+      viewer.options.lat = r.number();
+    } else if (a == "--zoom") viewer.options.zoom = r.number();
+    else if (a == "--pitch") viewer.options.pitch = r.number();
+    else if (a == "--bearing") viewer.options.bearing = r.number();
     else if (a == "--flat") {
       viewer.options.globe = false;
       viewer.options.view = "terrain";
-    } else if (a == "--view" && i + 1 < argc) viewer.options.view = argv[++i];
+    } else if (a == "--view") viewer.options.view = r.next();
     else if (a == "--no-controls") viewer.options.controls = false;
     else if (a == "--touch") viewer.options.touchControls = true;
     else if (a == "--offline") viewer.options.offline = true;
-    else if (a == "--cache" && i + 1 < argc) viewer.options.cacheDirectory = argv[++i];
-    else if (a == "--exit-after") viewer.exitAfter = static_cast<int>(arg(argc, argv, i));
+    else if (a == "--cache") viewer.options.cacheDirectory = r.next();
+    else if (a == "--exit-after") viewer.exitAfter = static_cast<int>(r.number());
   }
   sapp_desc desc{};
   desc.init_cb = init;
