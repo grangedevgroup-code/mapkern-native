@@ -724,7 +724,119 @@ void MapImpl::updateOverlay() {
   const auto a = transform.unprojectLngLat(0, h);
   const auto b = transform.unprojectLngLat(100, h);
   s.metersPerMaxWidth = a && b ? haversineMeters(*a, *b) : 0;
+  s.hud = hudLines;
   overlay->update(s);
+}
+
+std::string MapImpl::diagnosticsJson() {
+  const double now = nowMs();
+  const double span = lastSnapshot > 0 ? (now - lastSnapshot) / 1000 : 0;
+  lastSnapshot = now;
+  const diag::Totals t = diag::totals();
+  const diag::Totals& p = lastTotals;
+  auto r2 = [](double v) { return std::round(v * 100) / 100; };
+  auto d = [](uint64_t a, uint64_t b) { return static_cast<double>(a >= b ? a - b : 0); };
+  auto rate = [&](double v) { return span > 0 ? r2(v / span) : 0.0; };
+  const FrameWindow& f = frameWindow;
+  const double frames = static_cast<double>(f.frames);
+  Array buckets;
+  for (uint64_t b : f.buckets) buckets.emplace_back(static_cast<double>(b));
+  Object frame{{"frames", frames},
+               {"fps", rate(frames)},
+               {"cpuAvgMs", f.frames ? r2(f.cpuSum / frames) : 0.0},
+               {"cpuMaxMs", r2(f.cpuMax)},
+               {"tickAvgMs", f.frames ? r2(f.tickSum / frames) : 0.0},
+               {"tickMaxMs", r2(f.tickMax)},
+               {"slow", static_cast<double>(f.slow)},
+               {"intervalAvgMs", f.intervals ? r2(f.intervalSum / static_cast<double>(f.intervals)) : 0.0},
+               {"intervalMaxMs", r2(f.intervalMax)},
+               {"intervalBuckets", Value(std::move(buckets))},
+               {"drawsAvg", f.frames ? r2(static_cast<double>(f.draws) / frames) : 0.0},
+               {"drawsMax", static_cast<double>(f.drawsMax)},
+               {"pieces", painter.stats().pieces}};
+  static const char* kinds[] = {"style", "source", "tile", "glyphs", "sprite", "image"};
+  Object requests;
+  for (int i = 0; i < diag::kKinds; i++) requests.emplace_back(kinds[i], d(t.requests[i], p.requests[i]));
+  static const char* results[] = {"ok", "empty", "http4xx", "http5xx", "timeout", "error", "cancelled"};
+  Object outcomes;
+  for (int i = 0; i < static_cast<int>(diag::NetResult::Count); i++) outcomes.emplace_back(results[i], d(t.results[i], p.results[i]));
+  const double netBytes = d(t.bytesNetwork, p.bytesNetwork);
+  const double answered = d(t.latency.count, p.latency.count);
+  Object net{{"requests", Value(std::move(requests))},
+             {"results", Value(std::move(outcomes))},
+             {"bytes", netBytes},
+             {"kbps", rate(netBytes * 8 / 1000)},
+             {"latencyAvgMs", answered > 0 ? r2((t.latency.totalMs - p.latency.totalMs) / answered) : 0.0},
+             {"latencyMaxMs", r2(t.latency.maxMs)},
+             {"queued", static_cast<double>(scheduler.queued())},
+             {"active", static_cast<double>(scheduler.active())}};
+  Object cache{{"hits", d(t.cacheHits, p.cacheHits)}, {"stale", d(t.cacheStale, p.cacheStale)}, {"bytes", d(t.bytesCache, p.bytesCache)},
+               {"localReads", d(t.localReads, p.localReads)}, {"localBytes", d(t.bytesLocal, p.bytesLocal)}};
+  if (diskCache) {
+    const auto c = diskCache->stats();
+    cache.emplace_back("diskBytes", static_cast<double>(c.bytes));
+    cache.emplace_back("diskEntries", static_cast<double>(c.entries));
+  }
+  static const char* stages[] = {"vectorTile", "image", "dem"};
+  Object decode;
+  for (int i = 0; i < static_cast<int>(diag::Stage::Count); i++) {
+    const double n = d(t.stages[i].count, p.stages[i].count);
+    decode.emplace_back(stages[i], Object{{"n", n},
+                                          {"avgMs", n > 0 ? r2((t.stages[i].totalMs - p.stages[i].totalMs) / n) : 0.0},
+                                          {"maxMs", r2(t.stages[i].maxMs)},
+                                          {"kb", r2(d(t.stageBytes[i], p.stageBytes[i]) / 1024)}});
+  }
+  Object tiles;
+  double tileBytes = 0;
+  for (const auto& [id, src] : sources) {
+    const auto st = src->stats();
+    if (!st) continue;
+    tileBytes += static_cast<double>(st->bytes);
+    tiles.emplace_back(id, Object{{"tiles", static_cast<double>(st->tiles)},
+                                  {"ready", static_cast<double>(st->ready)},
+                                  {"loading", static_cast<double>(st->loading)},
+                                  {"failed", static_cast<double>(st->failed)},
+                                  {"empty", static_cast<double>(st->empty)},
+                                  {"visible", static_cast<double>(st->visibleSlots)},
+                                  {"fallback", static_cast<double>(st->fallbackPieces)},
+                                  {"blank", r2(st->blankPending + st->blankFailed)},
+                                  {"requested", static_cast<double>(st->requested)},
+                                  {"completed", static_cast<double>(st->completed)},
+                                  {"failures", static_cast<double>(st->failures)},
+                                  {"evicted", static_cast<double>(st->evicted)},
+                                  {"mb", r2(static_cast<double>(st->bytes) / 1048576)}});
+  }
+  const LngLat c = transform.center();
+  Object camera{{"lng", std::round(c.lng * 1e5) / 1e5},
+                {"lat", std::round(c.lat * 1e5) / 1e5},
+                {"zoom", std::round(transform.zoom() * 1000) / 1000},
+                {"bearing", r2(transform.bearing())},
+                {"pitch", r2(transform.pitch())},
+                {"globe", r2(transform.globeAmount())},
+                {"view", currentView()},
+                {"terrain", terrain != nullptr},
+                {"width", transform.width},
+                {"height", transform.height},
+                {"ratio", pixelRatio}};
+  Object state{{"styleLoaded", styleLoaded},
+               {"offline", mapkern::offline()},
+               {"reachable", networkReachable()},
+               {"touching", gestures.touching()},
+               {"gesture", gestures.active()},
+               {"animating", motion.has_value() || gestures.animating()}};
+  Array fresh;
+  const uint64_t added = errorCount - errorsReported;
+  const size_t take = static_cast<size_t>(std::min<uint64_t>(added, recentErrors.size()));
+  for (size_t i = recentErrors.size() - take; i < recentErrors.size(); i++) fresh.emplace_back(recentErrors[i].second);
+  Object errors{{"new", static_cast<double>(added)}, {"total", static_cast<double>(errorCount)}, {"recent", Value(std::move(fresh))}};
+  Object root{{"span", r2(span)},       {"frame", Value(std::move(frame))},   {"net", Value(std::move(net))},
+              {"cache", Value(std::move(cache))}, {"decode", Value(std::move(decode))}, {"tiles", Value(std::move(tiles))},
+              {"tileMb", r2(tileBytes / 1048576)}, {"camera", Value(std::move(camera))}, {"state", Value(std::move(state))},
+              {"errors", Value(std::move(errors))}};
+  frameWindow = FrameWindow{};
+  lastTotals = t;
+  errorsReported = errorCount;
+  return Value(std::move(root)).toJson();
 }
 
 void MapImpl::setTerrain(const Value& spec) {
