@@ -55,6 +55,7 @@ MapImpl::MapImpl(const MapOptions& o) : options(o) {
   transform.setCenter(o.lng, o.lat);
   transform.setBearing(o.bearing);
   transform.setPitch(o.pitch);
+  fitWorld = o.zoom == 0 && o.lng == 0 && o.lat == 0;
   if (o.offline) setOffline(true);
   const std::string dir = o.cacheDirectory.empty() ? defaultCacheDirectory() : o.cacheDirectory;
   if (o.diskCacheBytes > 0) diskCache = sharedDiskCache(dir, o.diskCacheBytes);
