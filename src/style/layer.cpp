@@ -118,7 +118,7 @@ std::optional<std::string> stringList(const Value& v) {
 }
 
 Value defaultHeat() {
-  return *parseJson(R"(["interpolate",["linear"],["heatmap-density"],0,"rgba(47, 111, 219, 0)",0.15,"#2f6fdb",0.35,"#2db3c4",0.55,"#7ccf6b",0.75,"#f2d544",1,"#e4572e"])");
+  return *parseJson(R"j(["interpolate",["linear"],["heatmap-density"],0,"rgba(47, 111, 219, 0)",0.15,"#2f6fdb",0.35,"#2db3c4",0.55,"#7ccf6b",0.75,"#f2d544",1,"#e4572e"])j");
 }
 
 using K = OutputKind;
@@ -415,7 +415,6 @@ void StyleLayer::setProperty(std::map<std::string, PropertyValue, std::less<>>& 
     if (auto problem = def.check(value)) throw StyleError(id + "." + group + "." + name + " " + *problem);
   }
   Value fallback = def.kind == OutputKind::Any ? def.def : coerce(def.def, def.kind);
-  if (fallback.isNull() && def.kind == OutputKind::Color && def.def.isArray()) fallback = Value();
   try {
     target[name] = PropertyValue(compile(literalList(missing ? def.def : value), def.kind, fallback,
                                          id + "." + group + "." + name, {std::string_view(group) == "paint", false}));
