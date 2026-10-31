@@ -1,9 +1,15 @@
+#include <GLES3/gl3.h>
+#include <GLES2/gl2ext.h>
 #include <android/log.h>
 #include <jni.h>
 
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include "map/map_impl.hpp"
 #include "mapkern/map.hpp"
