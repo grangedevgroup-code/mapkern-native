@@ -9,6 +9,7 @@ namespace mapkern {
 namespace {
 
 std::mutex factoryMutex;
+std::mutex agentMutex;
 HttpFactory factory;
 std::shared_ptr<HttpClient> client;
 std::string agent = "Mapkern Native/0.1";
@@ -65,12 +66,12 @@ void httpRequest(HttpRequest request, CancelToken cancel, HttpCallback callback)
 }
 
 std::string userAgent() {
-  std::lock_guard lock(factoryMutex);
+  std::lock_guard lock(agentMutex);
   return agent;
 }
 
 void setUserAgent(std::string a) {
-  std::lock_guard lock(factoryMutex);
+  std::lock_guard lock(agentMutex);
   agent = std::move(a);
 }
 
