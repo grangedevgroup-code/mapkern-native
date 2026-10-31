@@ -2,6 +2,8 @@
 
 #include <mutex>
 
+#include "diag/diagnostics.hpp"
+
 namespace mapkern {
 
 ManagerEvents Source::tileEvents() {
