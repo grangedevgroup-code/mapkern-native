@@ -275,11 +275,7 @@ public final class MapView: MTKView, MTKViewDelegate {
     public override func mouseDown(with event: NSEvent) {
         guard let map else { return }
         let p = point(event)
-        if event.clickCount == 2 {
-            mk_map_double_tap(map, p.x, p.y)
-        } else {
-            mk_map_pointer_down(map, 0, p.x, p.y)
-        }
+        mk_map_pointer_down(map, 0, p.x, p.y)
         wake()
     }
 
