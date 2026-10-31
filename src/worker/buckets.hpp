@@ -40,6 +40,8 @@ struct Geometry {
 
 class FillBuilder {
  public:
+  explicit FillBuilder(int32_t extent = 0) : extent_(extent) {}
+  int32_t extent_;
   Growable vertices;
   std::vector<uint32_t> indices;
   std::vector<uint32_t> edges;
@@ -64,7 +66,8 @@ class LineBuilder {
   Growable vertices;
   std::vector<uint32_t> indices;
   uint32_t vertexCount = 0;
-  void addLine(const Ring& points, uint32_t feature, bool closedHint = false);
+  void addLine(const Ring& points, uint32_t feature, bool closedHint = false, bool startCut = false, bool endCut = false);
+  void addClipped(const Ring& points, uint32_t feature, bool closedHint, int32_t extent);
 
  private:
   void shift(double x, double y) {
@@ -114,5 +117,14 @@ class CircleBuilder {
 };
 
 std::vector<double> clipRing(const std::vector<double>& ring, double x0, double y0, double x1, double y1);
+
+struct LinePart {
+  Ring points;
+  bool startCut = false;
+  bool endCut = false;
+};
+
+std::vector<LinePart> clipLine(const Ring& line, double x0, double y0, double x1, double y1);
+bool outsideTile(const std::vector<Ring>& rings, int32_t extent);
 
 }
