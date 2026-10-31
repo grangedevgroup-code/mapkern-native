@@ -9,12 +9,14 @@
 #include <vector>
 
 #include "camera/transform.hpp"
+#include "map/dem_source.hpp"
 #include "map/raster_source.hpp"
 #include "map/source.hpp"
 #include "map/vector_source.hpp"
 #include "render/gpu.hpp"
 #include "render/paint_table.hpp"
 #include "style/layer.hpp"
+#include "terrain/terrain.hpp"
 #include "text/labels.hpp"
 
 namespace mapkern {
@@ -59,6 +61,7 @@ struct FrameInput {
   double pixelRatio = 1;
   double now = 0;
   Color clearColor{0, 0, 0, 0};
+  Terrain* terrain = nullptr;
 };
 
 struct PaintStats {
@@ -83,6 +86,18 @@ class Painter {
   void drawLayer(const FrameInput& frame, const StyleLayer& layer);
   void drawBackground(const FrameInput& frame, const StyleLayer& layer);
   void drawRaster(const FrameInput& frame, const StyleLayer& layer, RasterSource& source);
+  void drawHillshade(const FrameInput& frame, const StyleLayer& layer, DemSource& source);
+  void drawTerrain(const FrameInput& frame, const std::vector<CoveringTile>& slots);
+  struct SlotDem {
+    sg_view dem{};
+    sg_view gradient{};
+    std::array<float, 4> rect{0, 0, 1, 1};
+    int size = 1;
+    int z = 0;
+    double range = 0;
+    bool has = false;
+  };
+  SlotDem slotDem(const FrameInput& frame, size_t index);
   void drawVector(const FrameInput& frame, const StyleLayer& layer, VectorSource& source);
   static bool clipped(const RenderPiece<VectorTileData>& piece);
   void applyClip(const RenderPiece<VectorTileData>& piece, double extent);
