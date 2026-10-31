@@ -54,7 +54,10 @@ class LocalFonts {
  private:
   struct Face;
   Face* face(bool bold, bool italic);
+  Face* fallback(uint32_t codepoint);
   std::mutex mutex_;
+  bool fallbacksLoaded_ = false;
+  std::vector<std::unique_ptr<Face>> fallbacks_;
   std::map<int, std::unique_ptr<Face>> faces_;
 };
 
