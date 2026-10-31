@@ -169,7 +169,7 @@ std::optional<std::vector<uint8_t>> LocalFonts::sdf(const FontSpec& font, uint32
   const float scale = stbtt_ScaleForMappingEmToPixels(&f->info, static_cast<float>(size));
   int adv = 0, lsb = 0;
   stbtt_GetCodepointHMetrics(&f->info, static_cast<int>(codepoint), &adv, &lsb);
-  advance = adv * scale;
+  advance = static_cast<double>(adv) * scale;
   int w = 0, h = 0, xoff = 0, yoff = 0;
   unsigned char* bitmap =
       stbtt_GetCodepointSDF(&f->info, scale, static_cast<int>(codepoint), kGlyphBuffer, 191, static_cast<float>(255.0 / kSdfRadius / 1.0), &w, &h, &xoff, &yoff);
