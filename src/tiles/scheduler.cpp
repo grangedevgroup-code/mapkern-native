@@ -60,7 +60,6 @@ void RequestScheduler::pump() {
   active_ += start.size();
   pumping_ = false;
   for (auto& h : start) {
-    std::weak_ptr<JobHandle> weak = h;
     auto finished = std::make_shared<bool>(false);
     try {
       h->run([this, h, finished]() {
