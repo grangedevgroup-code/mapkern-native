@@ -51,6 +51,9 @@ void Gpu::setup(const sg_environment& environment) {
   shaders_[static_cast<int>(Program::Line)] = sg_make_shader(mk_line_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::Circle)] = sg_make_shader(mk_circle_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::Extrusion)] = sg_make_shader(mk_extrusion_shader_desc(sg_query_backend()));
+  shaders_[static_cast<int>(Program::Globe)] = sg_make_shader(mk_globe_shader_desc(sg_query_backend()));
+  shaders_[static_cast<int>(Program::Atmosphere)] = sg_make_shader(mk_atmosphere_shader_desc(sg_query_backend()));
+  shaders_[static_cast<int>(Program::Pole)] = sg_make_shader(mk_pole_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::FillClip)] = sg_make_shader(mk_fill_clip_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::LineClip)] = sg_make_shader(mk_line_clip_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::CircleClip)] = sg_make_shader(mk_circle_clip_shader_desc(sg_query_backend()));
@@ -193,7 +196,13 @@ sg_pipeline Gpu::pipeline(const PipelineKey& key) {
   switch (key.program) {
     case Program::Solid:
     case Program::Raster:
+    case Program::Atmosphere:
+    case Program::Pole:
       layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
+      break;
+    case Program::Globe:
+      layout.buffers[0].stride = 8;
+      layout.attrs[ATTR_mk_globe_a_pos] = {0, 0, SG_VERTEXFORMAT_SHORT4};
       break;
     case Program::Fill:
     case Program::FillClip:
@@ -226,13 +235,21 @@ sg_pipeline Gpu::pipeline(const PipelineKey& key) {
       break;
     default: break;
   }
-  if (key.program != Program::Solid && key.program != Program::Raster) d.index_type = SG_INDEXTYPE_UINT32;
+  if (key.program != Program::Solid && key.program != Program::Raster && key.program != Program::Atmosphere && key.program != Program::Pole)
+    d.index_type = SG_INDEXTYPE_UINT32;
   if (key.blend == Blend::Premultiplied) {
     d.colors[0].blend.enabled = true;
     d.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_ONE;
     d.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
     d.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
     d.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+  }
+  if (key.blend == Blend::Additive) {
+    d.colors[0].blend.enabled = true;
+    d.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_ONE;
+    d.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE;
+    d.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
+    d.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
   }
   if (!key.colorWrite) d.colors[0].write_mask = SG_COLORMASK_NONE;
   d.colors[0].pixel_format = key.color;
