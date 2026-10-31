@@ -24,3 +24,4 @@ Thumbs.db
 *.pfx
 *.jks
 *.keystore
+/platform/android/**/.cxx/
