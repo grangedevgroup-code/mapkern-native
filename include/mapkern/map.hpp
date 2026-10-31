@@ -139,9 +139,10 @@ class Map {
   void rotateBy(double degrees);
   void pitchBy(double degrees);
 
-  void pointerDown(int id, double x, double y);
-  void pointerMove(int id, double x, double y);
-  void pointerUp(int id, double x, double y);
+  void pointerDown(int id, double x, double y, double timeMs = -1);
+  void pointerMove(int id, double x, double y, double timeMs = -1);
+  void pointerUp(int id, double x, double y, double timeMs = -1);
+  void pointerCancel(int id);
   void wheel(double delta, double x, double y);
   void doubleTap(double x, double y);
 
