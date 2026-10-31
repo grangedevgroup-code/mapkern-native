@@ -13,6 +13,9 @@
 #include "style/color.hpp"
 #include "style/import.hpp"
 #include "style/validate.hpp"
+#include "formats/image.hpp"
+#include "worker/symbols.hpp"
+#include <cstring>
 
 namespace mapkern {
 
@@ -39,6 +42,7 @@ sg_swapchain toSwapchain(const RenderSurface& s) {
 
 MapImpl::MapImpl(const MapOptions& o) : options(o) {
   registerArchiveProtocols();
+  installSymbolBuilder();
   pixelRatio = o.pixelRatio;
   transform.setPitchRange(0, o.maxPitch);
   transform.setZoomRange(o.minZoom, o.maxZoom);
@@ -212,6 +216,9 @@ void MapImpl::applyStyle(const Value& style, const std::vector<std::string>& ski
     }
   }
   styleLoaded = true;
+  painter.labels().clear();
+  painter.labels().setGlyphs(serverGlyphs(style["glyphs"]), diskCache, &mailbox, [this] { invalidate(); });
+  loadSprite(style["sprite"]);
   layersChanged();
   for (auto& [id, s] : sources)
     if (!s->loaded()) s->load();
@@ -231,6 +238,67 @@ Value MapImpl::styleJson() const {
   root = withKey(std::move(root), "sources", Value(srcs));
   root = withKey(std::move(root), "layers", Value(ls));
   return Value(root);
+}
+
+void MapImpl::loadSprite(const Value& sprite) {
+  painter.labels().images.clear();
+  std::vector<std::pair<std::string, std::string>> sheets;
+  if (sprite.isString()) sheets.emplace_back("", sprite.asString());
+  else if (sprite.isArray())
+    for (const auto& s : sprite.asArray())
+      if (s["url"].isString()) sheets.emplace_back(s["id"].stringOr("default") == "default" ? "" : s["id"].asString() + ":", s["url"].asString());
+  const std::string scale = pixelRatio > 1 ? "@2x" : "";
+  auto token = styleRequest;
+  for (const auto& [prefix, base] : sheets) {
+    std::string root = base, query;
+    if (const size_t q = root.find('?'); q != std::string::npos) {
+      query = root.substr(q);
+      root = root.substr(0, q);
+    }
+    auto json = std::make_shared<std::optional<FetchOutcome>>();
+    auto png = std::make_shared<std::optional<FetchOutcome>>();
+    auto finish = [this, json, png, prefix, token] {
+      if (token.cancelled() || !json->has_value() || !png->has_value()) return;
+      auto* j = std::get_if<FetchResult>(&**json);
+      auto* p = std::get_if<FetchResult>(&**png);
+      if (!j || !p || !j->data || !p->data) {
+        error("sprite-error", "Sprite could not be loaded");
+        return;
+      }
+      auto index = parseJson(std::string_view(reinterpret_cast<const char*>(j->data->data()), j->data->size()));
+      auto image = decodeImage(*p->data, true);
+      if (!index || !index->isObject() || !image) {
+        error("sprite-error", "Sprite could not be read");
+        return;
+      }
+      for (const auto& [name, entry] : index->asObject()) {
+        const int x = static_cast<int>(entry["x"].numberOr(0)), y = static_cast<int>(entry["y"].numberOr(0));
+        const int w = static_cast<int>(entry["width"].numberOr(0)), h = static_cast<int>(entry["height"].numberOr(0));
+        if (w <= 0 || h <= 0 || x < 0 || y < 0 || x + w > image->width || y + h > image->height) continue;
+        StyleImage img;
+        img.width = w;
+        img.height = h;
+        img.pixelRatio = entry["pixelRatio"].numberOr(1);
+        img.sdf = entry["sdf"].boolOr(false);
+        img.rgba.resize(static_cast<size_t>(w) * h * 4);
+        for (int row = 0; row < h; row++)
+          std::memcpy(&img.rgba[static_cast<size_t>(row) * w * 4], &image->rgba[(static_cast<size_t>(y + row) * image->width + x) * 4], static_cast<size_t>(w) * 4);
+        painter.labels().images.add(prefix + name, std::move(img));
+      }
+      invalidate();
+    };
+    for (int k = 0; k < 2; k++) {
+      const std::string url = root + scale + (k == 0 ? ".json" : ".png") + query;
+      auto slot = k == 0 ? json : png;
+      fetchBytes(resolveRequest(url, ResourceKind::Sprite, sourceCtx.transformRequest), token, options.requestTimeoutMs, ResourceKind::Sprite, diskCache,
+                 [this, slot, finish](FetchOutcome out) {
+                   mailbox.post([slot, finish, out = std::move(out)]() mutable {
+                     *slot = std::move(out);
+                     finish();
+                   });
+                 });
+    }
+  }
 }
 
 void MapImpl::addSource(const std::string& id, const Value& spec) {
@@ -524,7 +592,7 @@ bool MapImpl::renderTarget(const FrameTarget& target) {
   frame.now = start;
   frame.clearColor = {0, 0, 0, 0};
   painter.render(frame, target);
-  dirty = painter.drapesBehind();
+  dirty = painter.drapesBehind() || painter.labelsAnimating();
   lastFrameMs = nowMs() - start;
   return true;
 }
