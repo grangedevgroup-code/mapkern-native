@@ -148,6 +148,15 @@ void MapImpl::shutdownGraphics() {
 void MapImpl::resize(double width, double height, double ratio) {
   transform.resize(width, height);
   pixelRatio = ratio;
+  if (fitWorld && width > 0 && height > 0) {
+    fitWorld = false;
+    const double top = mercatorY(75), bottom = mercatorY(-55);
+    const double lat = latFromMercatorY((top + bottom) / 2);
+    const double zoom = options.globe ? globeFitZoom(width, height, transform.fov(), lat)
+                                      : std::log2(std::min(width / 512, height / (512 * (bottom - top))));
+    transform.setZoom(zoom);
+    transform.setCenter(0, lat);
+  }
   invalidate();
 }
 
