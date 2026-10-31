@@ -275,6 +275,10 @@ void Painter::renderDrapes(const FrameInput& frame, const std::vector<CoveringTi
         return l->type == LayerType::Hillshade && l->fixed("illuminationAnchor").stringOr("viewport") != "map";
       }))
     common = mixd(common, t.bearing());
+  const bool zoomed = std::any_of(layers.begin(), layers.end(), [](const StyleLayer* l) {
+    return l->usesZoom() || l->type == LayerType::Line || l->type == LayerType::Circle || l->type == LayerType::Heatmap || l->type == LayerType::Hillshade;
+  });
+  const double tolerance = !zoomed ? kInfinity : frame.moving ? kMovingZoomStep : kRestingZoomStep;
   const PassFormat saved = format_;
   format_ = {SG_PIXELFORMAT_RGBA8, SG_PIXELFORMAT_NONE, 1};
   const double deadline = nowMs() + 6;
