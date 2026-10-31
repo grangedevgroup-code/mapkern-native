@@ -100,6 +100,12 @@ void MapImpl::error(const std::string& code, const std::string& message, const s
   emit(e);
 }
 
+void MapImpl::initGraphicsNative(const sg_environment& e) {
+  Gpu::get().setup(e);
+  graphics = true;
+  invalidate();
+}
+
 void MapImpl::initGraphics(const GraphicsEnvironment& env) {
   sg_environment e{};
   e.defaults.color_format = static_cast<sg_pixel_format>(env.colorFormat);
@@ -455,22 +461,16 @@ void MapImpl::tick(double now) {
     dirty = true;
   }
   if (inertia) {
-    const double dt = now - inertiaTime;
-    const double decay = std::exp(-dt / 325.0);
-    if (decay < 0.02) {
-      inertia.reset();
-    } else {
-      const double cx = transform.width / 2, cy = transform.height / 2;
-      const double step = 16.0 * decay;
-      const auto w = transform.unprojectClamped(cx - (*inertia)[0] * step, cy - (*inertia)[1] * step);
-      transform.setLocationAtPoint(w, cx, cy);
-      inertiaTime = now - std::log(decay) * -325.0 + dt;
-      inertiaTime = now;
-      (*inertia)[0] *= std::exp(-16.0 / 325.0) / 1.0;
-      (*inertia)[1] *= std::exp(-16.0 / 325.0) / 1.0;
-      if (std::hypot((*inertia)[0], (*inertia)[1]) < 0.02) inertia.reset();
-      dirty = true;
-    }
+    const double dt = std::clamp(now - inertiaTime, 0.0, 50.0);
+    inertiaTime = now;
+    const double cx = transform.width / 2, cy = transform.height / 2;
+    const auto w = transform.unprojectClamped(cx - (*inertia)[0] * dt, cy - (*inertia)[1] * dt);
+    transform.setLocationAtPoint(w, cx, cy);
+    const double k = std::exp(-dt / 325.0);
+    (*inertia)[0] *= k;
+    (*inertia)[1] *= k;
+    if (std::hypot((*inertia)[0], (*inertia)[1]) < 0.01) inertia.reset();
+    dirty = true;
   }
   for (auto& l : layers)
     if (l->settle(now)) dirty = true;
@@ -494,7 +494,17 @@ bool MapImpl::needsRender() const {
   return wakeAt > 0 && nowMs() >= wakeAt;
 }
 
-bool MapImpl::render(const RenderSurface& surface) {
+bool MapImpl::render(const RenderSurface& surface) { return renderSwapchain(toSwapchain(surface)); }
+
+bool MapImpl::renderSwapchain(const sg_swapchain& swapchain) {
+  FrameTarget target;
+  target.swapchain = swapchain;
+  target.width = swapchain.width;
+  target.height = swapchain.height;
+  return renderTarget(target);
+}
+
+bool MapImpl::renderTarget(const FrameTarget& target) {
   const double start = nowMs();
   tick(start);
   if (!graphics) return false;
@@ -506,10 +516,6 @@ bool MapImpl::render(const RenderSurface& surface) {
   frame.pixelRatio = pixelRatio;
   frame.now = start;
   frame.clearColor = {0, 0, 0, 0};
-  FrameTarget target;
-  target.swapchain = toSwapchain(surface);
-  target.width = surface.width;
-  target.height = surface.height;
   painter.render(frame, target);
   dirty = false;
   lastFrameMs = nowMs() - start;
