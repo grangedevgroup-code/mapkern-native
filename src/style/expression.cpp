@@ -74,8 +74,6 @@ std::optional<Array> asList(const Value& v) {
   return std::nullopt;
 }
 
-bool isListLike(const Value& v) { return v.isArray() || v.isColor(); }
-
 std::string stringify(const Value& v) {
   if (v.isNull()) return "";
   if (v.isString()) return v.asString();
