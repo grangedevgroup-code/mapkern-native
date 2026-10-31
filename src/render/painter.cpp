@@ -375,7 +375,7 @@ void Painter::renderDrapes(const FrameInput& frame, const std::vector<CoveringTi
     sg_end_pass();
     entry.signature = sig;
     entry.drawn = true;
-    entry.zoom = zoom;
+    entry.zoom = scale;
     redrawn++;
     stats_.drapes++;
   }
