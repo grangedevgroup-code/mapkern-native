@@ -77,6 +77,7 @@ class Painter {
   bool drapesBehind() const { return drapesBehind_; }
   bool labelsAnimating() const { return labelsAnimating_; }
   LabelRenderer& labels() { return labels_; }
+  void resetGpu();
 
  private:
   void drawLayer(const FrameInput& frame, const StyleLayer& layer);
