@@ -103,6 +103,19 @@ class MapView @JvmOverloads constructor(
         return Camera(c[0], c[1], c[2], c[3], c[4])
     }
 
+    fun diagnostics(callback: (String) -> Unit) = queueEvent {
+        callback(if (handle != 0L) String(nativeDiagnostics(handle), Charsets.UTF_8) else "{}")
+    }
+
+    fun graphicsInfo(callback: (String) -> Unit) = queueEvent { callback(String(nativeGlInfo(), Charsets.UTF_8)) }
+
+    fun setGpuTiming(enabled: Boolean) = queueEvent { if (handle != 0L) nativeSetGpuTiming(handle, enabled) }
+
+    fun setHud(lines: List<String>) {
+        val text = lines.joinToString("\n")
+        queueEvent { if (handle != 0L) nativeSetHud(handle, text) }
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val action = when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> 0
