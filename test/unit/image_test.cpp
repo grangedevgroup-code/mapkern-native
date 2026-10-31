@@ -90,3 +90,25 @@ TEST("image: a truncated PNG is an error, not half an image") {
   EXPECT(!decodeImage(data, true, &error));
   EXPECT(!error.empty());
 }
+
+TEST("image: mip chain averages each 2x2 block down to one pixel") {
+  const std::vector<uint8_t> rgba{0, 0, 0, 255, 100, 40, 8, 255, 200, 80, 16, 255, 255, 120, 24, 251, 10, 10, 10, 10, 20, 20, 20, 20, 30, 30, 30, 30, 40, 40, 40, 40};
+  const MipChain chain = mipChain(rgba.data(), 4, 2, 16);
+  EXPECT(chain.size() == 2);
+  EXPECT(chain[0].size() == 2 * 1 * 4);
+  EXPECT(chain[1].size() == 4);
+  EXPECT(chain[0][0] == (0 + 100 + 10 + 20 + 2) / 4);
+  EXPECT(chain[0][4] == (200 + 255 + 30 + 40 + 2) / 4);
+  EXPECT(chain[0][7] == (255 + 251 + 30 + 40 + 2) / 4);
+  EXPECT(chain[1][0] == (chain[0][0] + chain[0][4] + chain[0][0] + chain[0][4] + 2) / 4);
+}
+
+TEST("image: mip chain stops at one pixel or the level limit") {
+  const std::vector<uint8_t> rgba(64 * 64 * 4, 7);
+  EXPECT(mipChain(rgba.data(), 64, 64, 16).size() == 6);
+  EXPECT(mipChain(rgba.data(), 64, 64, 3).size() == 2);
+  EXPECT(mipChain(rgba.data(), 64, 64, 16).back().size() == 4);
+  EXPECT(mipChain(rgba.data(), 64, 64, 16).back()[0] == 7);
+  EXPECT(mipChain(nullptr, 64, 64, 16).empty());
+  EXPECT(mipChain(rgba.data(), 1, 1, 16).empty());
+}
