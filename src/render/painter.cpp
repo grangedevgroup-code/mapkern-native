@@ -490,14 +490,19 @@ void Painter::drawGlobe(const FrameInput& frame, const std::vector<CoveringTile>
       rx -= std::round(rx);
       set4(vs.u_tile, rx, static_cast<double>(slot.y) / n - c[1], 1.0 / n);
       set4(vs.u_tile_world, slot.wrap + static_cast<double>(slot.x) / n, static_cast<double>(slot.y) / n, 1.0 / n);
-      set4(vs.u_dem_rect, 0, 0, 1, 1);
-      set4(vs.u_dem_info, 1, 0, 0, 30);
+      set4(vs.u_dem_rect, dem.rect[0], dem.rect[1], dem.rect[2], dem.rect[3]);
+      set4(vs.u_dem_info, dem.size, dem.has ? 1 : 0, exaggeration, std::max(30.0, dem.range * 0.2) * std::max(1.0, exaggeration));
       sg_apply_uniforms(UB_mk_globe_vs_params, SG_RANGE(vs));
       mk_globe_fs_params_t fs{};
       set4(fs.u_drape_rect, rect[0], rect[1], rect[2], rect[3]);
       setColor(fs.u_base, base);
       set4(fs.u_atmo, eye[0], eye[1], eye[2], strength);
       set4(fs.u_misc, cap, t.globeRadius(), flip ? 1 : 0);
+      if (relief > 0) set4(fs.u_sun, std::sin(azimuth) * std::cos(kPi / 4), -std::cos(azimuth) * std::cos(kPi / 4), std::sin(kPi / 4), relief);
+      const double cells = dem.size;
+      set4(fs.u_grad, cells / (cells + 2), 1 / (cells + 2), dem.has ? std::exp2(dem.z) * cells / kEarthCircumference : 0, 0);
+      set4(fs.u_rows2, static_cast<double>(slot.y) / n, static_cast<double>(slot.y + 1) / n, exaggeration, dem.has ? 1 : 0);
+      set4(fs.u_dem_rect2, dem.rect[0], dem.rect[1], dem.rect[2], dem.rect[3]);
       sg_apply_uniforms(UB_mk_globe_fs_params, SG_RANGE(fs));
       if (cap == 0) {
         sg_draw(0, static_cast<int>(meshCount_), 1);
