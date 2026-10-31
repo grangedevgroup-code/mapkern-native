@@ -72,7 +72,9 @@ class VectorTileLoader : public TileLoader<VectorTileData> {
                          return;
                        }
                        try {
+                         const double started = diag::steadyMs();
                          VectorTileResult result = buildVectorTile(*r.data, tile.z, tile.x, tile.y, *programs, false, promote);
+                         diag::stage(diag::Stage::VectorTile, diag::steadyMs() - started, r.data->size());
                          auto data = std::make_shared<VectorTileData>();
                          size_t bytes = 0;
                          for (auto& b : result.buckets) {
