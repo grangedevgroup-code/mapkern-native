@@ -17,4 +17,4 @@
 #define WUFFS_CONFIG__DST_PIXEL_FORMAT__ALLOW_RGBA_NONPREMUL
 #define WUFFS_CONFIG__ENABLE_MSVC_CPU_ARCH__X86_64_V3
 
-#include "wuffs/wuffs-v0.4.c"
+#include "wuffs/wuffs-v0.4.h"
