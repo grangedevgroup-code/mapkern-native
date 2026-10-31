@@ -75,6 +75,11 @@ struct IconPart {
   double haloWidth = 0, opacity = 1, pixelRatio = 1;
 };
 
+struct LabelTerrain {
+  std::function<double(double, double)> height;
+  std::function<bool(double, double, double)> hidden;
+};
+
 struct Label {
   std::string key, dedupe;
   const StyleLayer* layer = nullptr;
@@ -82,6 +87,7 @@ struct Label {
   bool line = false;
   double wx = 0, wy = 0, wz = 0;
   std::vector<double> path;
+  std::vector<double> heights;
   double anchorDist = 0;
   std::shared_ptr<const Laid> laid;
   double scale = 1;
@@ -103,12 +109,14 @@ class LabelRenderer {
  public:
   GlyphAtlas atlas;
   ImageAtlas images;
-  bool update(Transform& transform, const std::vector<SymbolLayerInput>& inputs, double now, uint64_t cameraVersion, double pixelRatio);
+  bool update(Transform& transform, const std::vector<SymbolLayerInput>& inputs, double now, uint64_t cameraVersion, double pixelRatio,
+              const LabelTerrain* terrain = nullptr);
   int draw(Transform& transform, double pixelRatio, const PassFormat& format);
   void setGlyphs(const std::string& tmpl, std::shared_ptr<ResponseStore> store, Mailbox* mailbox, std::function<void()> arrived);
   void clear();
   void resetGpu();
   size_t visibleCount() const { return visible_; }
+  void invalidatePlacement() { reflow_ = true; }
 
  private:
   struct TextShape {
@@ -123,6 +131,7 @@ class LabelRenderer {
   void syncTextures();
 
   std::unordered_map<std::string, Label> labels_;
+  const LabelTerrain* terrain_ = nullptr;
   std::unordered_map<std::string, std::shared_ptr<const Laid>> layoutCache_;
   uint64_t layoutGeneration_ = UINT64_MAX;
   std::unique_ptr<GlyphServer> server_;
