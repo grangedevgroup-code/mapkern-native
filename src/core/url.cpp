@@ -96,13 +96,14 @@ std::string urlOrigin(std::string_view url) {
 
 std::string percentDecode(std::string_view s) {
   std::string out;
-  for (size_t i = 0; i < s.size(); i++) {
+  size_t i = 0;
+  while (i < s.size()) {
     if (s[i] == '%' && i + 2 < s.size() && std::isxdigit(static_cast<unsigned char>(s[i + 1])) &&
         std::isxdigit(static_cast<unsigned char>(s[i + 2]))) {
       out += static_cast<char>(std::stoi(std::string(s.substr(i + 1, 2)), nullptr, 16));
-      i += 2;
+      i += 3;
     } else {
-      out += s[i];
+      out += s[i++];
     }
   }
   return out;
