@@ -301,8 +301,41 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_grangedevgroup_mapkern_MapView_na
   sc.color_format = SG_PIXELFORMAT_RGBA8;
   sc.depth_format = SG_PIXELFORMAT_DEPTH_STENCIL;
   sc.gl.framebuffer = 0;
+  h->gpu.begin();
   h->map->impl().renderSwapchain(sc);
+  h->gpu.end();
   return h->map->needsRender();
+}
+
+extern "C" JNIEXPORT jbyteArray JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeDiagnostics(JNIEnv* env, jobject, jlong ptr) {
+  Handle* h = handle(ptr);
+  const std::string out = "{\"engine\":" + h->map->diagnostics() + ",\"gpu\":" + h->gpu.take() + "}";
+  return bytes(env, out);
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetHud(JNIEnv* env, jobject, jlong ptr, jstring text) {
+  std::vector<std::string> lines;
+  const std::string all = str(env, text);
+  size_t start = 0;
+  while (start < all.size()) {
+    const size_t end = all.find('\n', start);
+    lines.push_back(all.substr(start, end == std::string::npos ? std::string::npos : end - start));
+    if (end == std::string::npos) break;
+    start = end + 1;
+  }
+  handle(ptr)->map->setHud(std::move(lines));
+}
+
+extern "C" JNIEXPORT jbyteArray JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeGlInfo(JNIEnv* env, jobject) {
+  auto get = [](GLenum name) {
+    const char* s = reinterpret_cast<const char*>(glGetString(name));
+    return std::string(s ? s : "");
+  };
+  GLint maxTexture = 0;
+  glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTexture);
+  const std::string out = get(GL_VENDOR) + "\n" + get(GL_RENDERER) + "\n" + get(GL_VERSION) + "\n" + get(GL_SHADING_LANGUAGE_VERSION) + "\n" +
+                          std::to_string(maxTexture) + "\n" + get(GL_EXTENSIONS);
+  return bytes(env, out);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativePointer(JNIEnv*, jobject, jlong ptr, jint action, jint id, jdouble x,
