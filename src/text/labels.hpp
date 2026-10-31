@@ -107,6 +107,7 @@ class LabelRenderer {
   int draw(Transform& transform, double pixelRatio, const PassFormat& format);
   void setGlyphs(const std::string& tmpl, std::shared_ptr<ResponseStore> store, Mailbox* mailbox, std::function<void()> arrived);
   void clear();
+  void resetGpu();
   size_t visibleCount() const { return visible_; }
 
  private:
