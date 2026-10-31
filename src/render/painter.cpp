@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "geo/mercator.hpp"
+#include "style/color.hpp"
 #include "render/shaders/map.glsl.h"
 
 namespace mapkern {
@@ -61,12 +62,6 @@ void hueRows(double degrees, float rows[3][4]) {
   }
 }
 
-std::array<float, 16> clipQuadMatrix(Transform& t, const Tile<VectorTileData>& tile, int wrap, const Rect& clip) {
-  mat4::Mat4 m = t.tileMatrixDouble(tile.z, tile.x, tile.y, wrap, 1);
-  mat4::translate(m, clip.x0, clip.y0, 0);
-  mat4::scale(m, clip.x1 - clip.x0, clip.y1 - clip.y0, 1);
-  return mat4::toFloat(m);
-}
 
 }
 
@@ -92,10 +87,8 @@ void Painter::bindPaint(sg_bindings& b, const PaintTable& paint) {
 bool Painter::render(const FrameInput& frame, const FrameTarget& target) {
   const auto started = std::chrono::steady_clock::now();
   stats_ = {};
-  format_ = {target.swapchain.color_format, target.swapchain.depth_format, target.swapchain.sample_count};
-  maskSource_.clear();
-  maskRefs_.clear();
-  maskOffset_ = 0;
+  format_ = target.offscreen ? target.format
+                             : PassFormat{target.swapchain.color_format, target.swapchain.depth_format, target.swapchain.sample_count};
   sg_pass pass{};
   pass.action.colors[0].load_action = SG_LOADACTION_CLEAR;
   pass.action.colors[0].clear_value = {static_cast<float>(frame.clearColor[0]), static_cast<float>(frame.clearColor[1]),
@@ -104,7 +97,8 @@ bool Painter::render(const FrameInput& frame, const FrameTarget& target) {
   pass.action.depth.clear_value = 1.0f;
   pass.action.stencil.load_action = SG_LOADACTION_CLEAR;
   pass.action.stencil.clear_value = 0;
-  pass.swapchain = target.swapchain;
+  if (target.offscreen) pass.attachments = target.attachments;
+  else pass.swapchain = target.swapchain;
   sg_begin_pass(&pass);
   const double zoom = frame.transform->zoom();
   for (const auto& layer : *frame.layers) {
@@ -192,32 +186,16 @@ void Painter::drawRaster(const FrameInput& frame, const StyleLayer& layer, Raste
   }
 }
 
-void Painter::drawMasks(const FrameInput& frame, const std::string& sourceId, const std::vector<RenderPiece<VectorTileData>>& pieces) {
-  if (maskSource_ == sourceId && !maskRefs_.empty()) return;
-  maskSource_ = sourceId;
-  maskRefs_.clear();
-  Transform& t = *frame.transform;
-  sg_bindings b{};
-  b.vertex_buffers[0] = Gpu::get().quad();
-  sg_apply_pipeline(pipeline(Program::Solid, SG_PRIMITIVETYPE_TRIANGLES, StencilMode::Write, DepthMode::Off, false));
-  sg_apply_bindings(&b);
-  sg_apply_stencil_ref(0);
-  mk_solid_params_t clear{};
-  const float m[16] = {2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, -1, -1, 0, 1};
-  std::memcpy(clear.u_matrix, m, sizeof m);
-  sg_apply_uniforms(UB_mk_solid_params, SG_RANGE(clear));
-  sg_draw(0, 6, 1);
-  int ref = 1;
-  for (const auto& piece : pieces) {
-    if (ref > 255) break;
-    sg_apply_stencil_ref(static_cast<uint8_t>(ref));
-    mk_solid_params_t p{};
-    copyMat(p.u_matrix, clipQuadMatrix(t, *piece.tile, piece.wrap, piece.clip));
-    sg_apply_uniforms(UB_mk_solid_params, SG_RANGE(p));
-    sg_draw(0, 6, 1);
-    maskRefs_[&piece] = ref++;
-    stats_.drawCalls++;
-  }
+bool Painter::clipped(const RenderPiece<VectorTileData>& piece) {
+  const Rect& c = piece.clip;
+  return !(c.x0 <= 0 && c.y0 <= 0 && c.x1 >= 1 && c.y1 >= 1);
+}
+
+void Painter::applyClip(const RenderPiece<VectorTileData>& piece, double extent) {
+  if (!clipped(piece)) return;
+  mk_clip_params_t c{};
+  set4(c.u_clip, piece.clip.x0 * extent, piece.clip.y0 * extent, piece.clip.x1 * extent, piece.clip.y1 * extent);
+  sg_apply_uniforms(UB_mk_clip_params, SG_RANGE(c));
 }
 
 void Painter::drawVector(const FrameInput& frame, const StyleLayer& layer, VectorSource& source) {
@@ -230,15 +208,12 @@ void Painter::drawVector(const FrameInput& frame, const StyleLayer& layer, Vecto
       break;
     }
   if (!any) return;
-  drawMasks(frame, source.id, pieces);
   for (const auto& piece : pieces) {
     auto& data = piece.tile->data;
     if (!data || !data->uploaded) continue;
     auto it = data->buckets.find(layer.id);
     if (it == data->buckets.end()) continue;
     VectorBucket& bucket = *it->second;
-    auto ref = maskRefs_.find(&piece);
-    sg_apply_stencil_ref(ref == maskRefs_.end() ? 0 : static_cast<uint8_t>(ref->second));
     switch (layer.type) {
       case LayerType::Fill: drawFill(frame, layer, bucket, piece); break;
       case LayerType::Line: drawLine(frame, layer, bucket, piece); break;
@@ -273,12 +248,14 @@ void Painter::drawFill(const FrameInput& frame, const StyleLayer& layer, VectorB
   b.vertex_buffers[0] = bucket.main->vertices.buffer;
   b.index_buffer = bucket.main->indices.buffer;
   bindPaint(b, bucket.paint);
+  if (!layer.paintValue("pattern", ctx).stringOr("").empty()) return;
   const bool antialias = layer.paintValue("antialias", ctx).boolOr(true);
   const bool hasOutline = layer.spec["paint"].has("outlineColor");
   if (color[3] > 0 || bucket.paint.slot("color").slot >= 0) {
-    sg_apply_pipeline(pipeline(Program::Fill));
+    sg_apply_pipeline(pipeline(clipped(piece) ? Program::FillClip : Program::Fill));
     sg_apply_bindings(&b);
     sg_apply_uniforms(UB_mk_fill_params, SG_RANGE(p));
+    applyClip(piece, bucket.extent);
     sg_draw(0, static_cast<int>(bucket.main->indexCount), 1);
     stats_.drawCalls++;
   }
@@ -289,9 +266,10 @@ void Painter::drawFill(const FrameInput& frame, const StyleLayer& layer, VectorB
       set4(p.u_slots, ol.slot, ol.composite, os.slot, os.composite);
     }
     b.index_buffer = bucket.outline->indices.buffer;
-    sg_apply_pipeline(pipeline(Program::Fill, SG_PRIMITIVETYPE_LINES));
+    sg_apply_pipeline(pipeline(clipped(piece) ? Program::FillClip : Program::Fill, SG_PRIMITIVETYPE_LINES));
     sg_apply_bindings(&b);
     sg_apply_uniforms(UB_mk_fill_params, SG_RANGE(p));
+    applyClip(piece, bucket.extent);
     sg_draw(0, static_cast<int>(bucket.outline->indexCount), 1);
     stats_.drawCalls++;
   }
@@ -348,10 +326,11 @@ void Painter::drawLine(const FrameInput& frame, const StyleLayer& layer, VectorB
   b.vertex_buffers[0] = bucket.main->vertices.buffer;
   b.index_buffer = bucket.main->indices.buffer;
   bindPaint(b, bucket.paint);
-  sg_apply_pipeline(pipeline(Program::Line));
+  sg_apply_pipeline(pipeline(clipped(piece) ? Program::LineClip : Program::Line));
   sg_apply_bindings(&b);
   sg_apply_uniforms(UB_mk_line_params, SG_RANGE(p));
   sg_apply_uniforms(UB_mk_line_dash, SG_RANGE(dash));
+  applyClip(piece, bucket.extent);
   sg_draw(0, static_cast<int>(bucket.main->indexCount), 1);
   stats_.drawCalls++;
 }
@@ -388,9 +367,10 @@ void Painter::drawCircle(const FrameInput& frame, const StyleLayer& layer, Vecto
   b.vertex_buffers[0] = bucket.main->vertices.buffer;
   b.index_buffer = bucket.main->indices.buffer;
   bindPaint(b, bucket.paint);
-  sg_apply_pipeline(pipeline(Program::Circle));
+  sg_apply_pipeline(pipeline(clipped(piece) ? Program::CircleClip : Program::Circle));
   sg_apply_bindings(&b);
   sg_apply_uniforms(UB_mk_circle_params, SG_RANGE(p));
+  applyClip(piece, bucket.extent);
   sg_draw(0, static_cast<int>(bucket.main->indexCount), 1);
   stats_.drawCalls++;
 }
@@ -420,9 +400,11 @@ void Painter::drawExtrusion(const FrameInput& frame, const StyleLayer& layer, Ve
   bind.vertex_buffers[0] = bucket.main->vertices.buffer;
   bind.index_buffer = bucket.main->indices.buffer;
   bindPaint(bind, bucket.paint);
-  sg_apply_pipeline(pipeline(Program::Extrusion, SG_PRIMITIVETYPE_TRIANGLES, StencilMode::Equal, DepthMode::TestWrite));
+  sg_apply_pipeline(pipeline(clipped(piece) ? Program::ExtrusionClip : Program::Extrusion, SG_PRIMITIVETYPE_TRIANGLES, StencilMode::Off,
+                             DepthMode::TestWrite));
   sg_apply_bindings(&bind);
   sg_apply_uniforms(UB_mk_extrusion_params, SG_RANGE(p));
+  applyClip(piece, bucket.extent);
   sg_draw(0, static_cast<int>(bucket.main->indexCount), 1);
   stats_.drawCalls++;
 }
