@@ -156,8 +156,7 @@ GpuTexture Gpu::texture(int width, int height, sg_pixel_format format, const voi
     for (int l = 0; l < levels; l++) d.data.mip_levels[l] = {chain[l].data(), chain[l].size()};
     t.image = sg_make_image(&d);
   } else {
-    if (pixels) d.data.mip_levels[0] = {pixels, bytes};
-    else d.usage.dynamic_update = true;
+    d.data.mip_levels[0] = {pixels, bytes};
     t.image = sg_make_image(&d);
   }
   sg_view_desc v{};
@@ -175,10 +174,10 @@ GpuTexture Gpu::floatTexture(int width, int height, const float* rgba) {
 }
 
 void Gpu::updateTexture(GpuTexture& tex, const void* pixels, size_t bytes) {
-  sg_image_data data{};
-  data.mip_levels[0] = {pixels, bytes};
-  sg_update_image(tex.image, &data);
-  uploaded_ += bytes;
+  const sg_pixel_format format = sg_query_image_desc(tex.image).pixel_format;
+  const int w = tex.width, h = tex.height;
+  tex.release();
+  tex = texture(w, h, format, pixels, bytes);
 }
 
 sg_pipeline Gpu::pipeline(const PipelineKey& key) {
