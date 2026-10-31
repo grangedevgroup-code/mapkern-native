@@ -95,6 +95,7 @@ jobs:
           patterns: |
             -build/**
             -**/CMakeFiles/**
+            -**/obj/**
             -src/render/shaders/map.glsl.h
             -third_party/**
             -test/**:cpp/unused-static-function
