@@ -120,6 +120,10 @@ class Map {
   double centerLat() const;
   void setProjection(bool globe);
   bool globe() const;
+  void setTerrain(const std::string& sourceId, double exaggeration = 1, double relief = 0);
+  void clearTerrain();
+  bool terrain() const;
+  std::optional<double> elevationAt(double lng, double lat) const;
 
   void panBy(double dx, double dy);
   void zoomBy(double delta, double x, double y, bool animate = false);
