@@ -531,10 +531,36 @@ bool Painter::render(const FrameInput& frame, const FrameTarget& target) {
       stats_.layers++;
     }
   }
+  drawLabels(frame);
   sg_end_pass();
   sg_commit();
   stats_.cpuMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
   return true;
+}
+
+void Painter::drawLabels(const FrameInput& frame) {
+  Transform& t = *frame.transform;
+  const auto c = t.centerWorld();
+  const std::array<double, 8> camera{c[0], c[1], t.zoom(), t.bearing(), t.pitch(), t.width, t.height, t.globeAmount()};
+  if (camera != lastCamera_) {
+    lastCamera_ = camera;
+    cameraVersion_++;
+  }
+  std::vector<SymbolLayerInput> inputs;
+  for (const auto& layer : *frame.layers) {
+    if (layer->type != LayerType::Symbol) continue;
+    auto it = frame.sources->find(layer->source);
+    if (it == frame.sources->end()) continue;
+    auto* v = dynamic_cast<VectorSource*>(it->second.get());
+    if (!v || !v->manager) continue;
+    inputs.push_back({layer.get(), v->manager.get()});
+  }
+  if (inputs.empty() && labels_.visibleCount() == 0) {
+    labelsAnimating_ = false;
+    return;
+  }
+  labelsAnimating_ = labels_.update(t, inputs, frame.now, cameraVersion_, frame.pixelRatio);
+  stats_.drawCalls += labels_.draw(t, frame.pixelRatio, format_);
 }
 
 void Painter::drawLayer(const FrameInput& frame, const StyleLayer& layer) {
