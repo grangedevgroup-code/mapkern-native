@@ -33,9 +33,11 @@ struct FrameTarget {
 
 struct RenderView {
   double zoom = 0;
+  std::optional<double> pixelZoom;
   double bearing = 0;
   double width = 1;
   double height = 1;
+  double scaleZoom() const { return pixelZoom.value_or(zoom); }
   std::function<std::array<float, 16>(int z, int x, int y, int wrap, double extent)> tileMatrix;
   std::optional<Rect> region;
   bool overlaps(int z, int x, int y, int wrap, double margin = 0) const;
