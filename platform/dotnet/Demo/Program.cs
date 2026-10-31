@@ -25,6 +25,7 @@ internal static class Program
         form.Controls.Add(map);
         var loaded = false;
         var errors = 0;
+        using var timer = new Timer { Interval = 8000 };
         if (smoke)
         {
             map.MapEvent += (_, e) =>
@@ -33,7 +34,6 @@ internal static class Program
                 if (e.Type == "error") errors++;
                 Console.WriteLine($"{e.Type} {e.Message}");
             };
-            var timer = new Timer { Interval = 8000 };
             timer.Tick += (_, _) =>
             {
                 var camera = map.Map?.Camera;
