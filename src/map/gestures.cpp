@@ -108,6 +108,7 @@ void Gestures::move(int id, double x, double y, double time) {
   }
   if (mode_.kind == Kind::Pan && mode_.pointer == id) {
     place(*mode_.anchor, x, y, true);
+    follow(mode_.anchor, x, y);
     samples_.push_back({time, x, y});
     while (samples_.size() > 2 && time - samples_.front().t > 100) samples_.erase(samples_.begin());
     host_.changed();
