@@ -43,15 +43,6 @@ class MapView @JvmOverloads constructor(
         override fun onLost(network: Network) = updateReachability()
         override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) = updateReachability()
     }
-    private val doubleTap = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-        override fun onDoubleTap(e: MotionEvent): Boolean {
-            val x = e.x / density
-            val y = e.y / density
-            queueEvent { if (handle != 0L) nativeDoubleTap(handle, x, y) }
-            return true
-        }
-    })
-
     init {
         System.loadLibrary("mapkern-jni")
         setEGLContextClientVersion(3)
