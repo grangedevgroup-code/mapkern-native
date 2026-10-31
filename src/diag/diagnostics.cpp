@@ -21,11 +21,11 @@ struct AtomicTiming {
     }
   }
 
-  Timing read() const {
+  Timing read() {
     Timing t;
     t.count = count.load(std::memory_order_relaxed);
     t.totalMs = static_cast<double>(totalUs.load(std::memory_order_relaxed)) / 1000;
-    t.maxMs = static_cast<double>(maxUs.load(std::memory_order_relaxed)) / 1000;
+    t.maxMs = static_cast<double>(maxUs.exchange(0, std::memory_order_relaxed)) / 1000;
     return t;
   }
 };
