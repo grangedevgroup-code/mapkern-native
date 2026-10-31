@@ -15,13 +15,13 @@ double numberOr(const Value& v, double fallback) { return v.isNumber() && std::i
 
 std::string normalizeText(const std::string& raw) {
   std::string unified;
-  size_t i = 0;
-  while (i < raw.size()) {
-    if (raw[i] == '\r') {
+  size_t at = 0;
+  while (at < raw.size()) {
+    if (raw[at] == '\r') {
       unified += '\n';
-      i += i + 1 < raw.size() && raw[i + 1] == '\n' ? 2 : 1;
+      at += at + 1 < raw.size() && raw[at + 1] == '\n' ? 2 : 1;
     } else {
-      unified += raw[i++];
+      unified += raw[at++];
     }
   }
   std::string out;
