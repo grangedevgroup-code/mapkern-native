@@ -13,12 +13,13 @@ namespace mapkern {
 struct DemTileData {
   int z = 0, x = 0, y = 0;
   DemGrid grid;
-  std::vector<float> gradient;
+  std::vector<uint16_t> gradient;
   GpuTexture gradientTexture;
   GpuTexture maskTexture;
   GpuTexture elevationTexture;
   bool elevationDirty = false;
   bool gradientDirty = false;
+  uint64_t version = 0;
 };
 
 class DemSource : public Source {
@@ -32,7 +33,7 @@ class DemSource : public Source {
   }
   void load() override;
   void update(Transform& transform, double now, const std::vector<Transform*>& predicted) override;
-  bool uploadPending(double deadline, double now) override;
+  bool uploadPending(UploadBudget& budget, double now) override;
   bool isIdle() const override;
   bool isFading() const override { return manager && manager->isFading(); }
   std::optional<TileStats> stats() const override;
@@ -49,9 +50,12 @@ class DemSource : public Source {
 
  private:
   void start(TileSet set);
+  bool refresh(DemTileData& data);
+  void resize(DemTileData& data);
   std::shared_ptr<TileLoader<DemTileData>> loader_;
   CancelToken lifetime_;
   Unpack unpack_;
+  std::vector<TileId> stale_;
 };
 
 }
