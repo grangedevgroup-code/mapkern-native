@@ -166,6 +166,7 @@ TEST("net: real HTTPS request (MAPKERN_NET_TESTS=1)") {
   });
   for (int i = 0; i < 400 && done == 0; i++) std::this_thread::sleep_for(std::chrono::milliseconds(50));
   auto* r = std::get_if<FetchResult>(&first);
+  if (auto* f = std::get_if<TileFailure>(&first)) std::printf("    failure: %s\n", f->message.c_str());
   EXPECT(r && !r->empty && r->data->size() > 100);
   if (r && r->data) EXPECT(std::string(r->data->begin(), r->data->begin() + 1) == "{");
   setOffline(true);
