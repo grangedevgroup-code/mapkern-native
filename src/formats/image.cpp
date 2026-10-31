@@ -63,6 +63,7 @@ void premultiplyAlpha(Image& image) {
 }
 
 std::optional<Image> decodeImage(const Bytes& data, bool premultiply, std::string* error) {
+  const double started = diag::steadyMs();
   Image image;
   if (isWebp(data)) {
 #ifdef MAPKERN_HAS_WEBP
