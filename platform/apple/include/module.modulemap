@@ -1,0 +1,5 @@
+module CMapkern {
+  header "mapkern.h"
+  link "c++"
+  export *
+}
