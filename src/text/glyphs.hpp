@@ -50,6 +50,9 @@ class LocalFonts {
   static LocalFonts& get();
   std::optional<std::vector<uint8_t>> sdf(const FontSpec& font, uint32_t codepoint, double size, int& width, int& height, double& left,
                                           double& top, double& advance);
+  bool bitmap(bool bold, uint32_t codepoint, double pixels, std::vector<uint8_t>& out, int& width, int& height, int& left, int& top,
+              double& advance, double& kernNext, uint32_t next);
+  double ascent(bool bold, double pixels);
 
  private:
   struct Face;
