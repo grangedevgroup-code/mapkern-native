@@ -54,7 +54,7 @@ class VectorSource : public Source {
   }
   void load() override;
   void update(Transform& transform, double now, const std::vector<Transform*>& predicted) override;
-  bool uploadPending(double deadline, double now) override;
+  bool uploadPending(UploadBudget& budget, double now) override;
   bool isIdle() const override;
   std::optional<TileStats> stats() const override;
   void reload() override;
