@@ -97,7 +97,8 @@ void event(const sapp_event* e) {
         const int id = static_cast<int>(t.identifier);
         if (e->type == SAPP_EVENTTYPE_TOUCHES_BEGAN) map.pointerDown(id, tx, ty);
         else if (e->type == SAPP_EVENTTYPE_TOUCHES_MOVED) map.pointerMove(id, tx, ty);
-        else map.pointerUp(id, tx, ty);
+        else if (e->type == SAPP_EVENTTYPE_TOUCHES_ENDED) map.pointerUp(id, tx, ty);
+        else map.pointerCancel(id);
       }
       break;
     case SAPP_EVENTTYPE_KEY_DOWN:
