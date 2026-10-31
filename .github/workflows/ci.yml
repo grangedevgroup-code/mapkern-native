@@ -68,3 +68,29 @@ jobs:
           path: |
             platform/android/mapkern/build/outputs/aar/*.aar
             platform/android/demo/build/outputs/apk/release/*.apk
+
+  dotnet:
+    name: .NET
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+      - name: Install Ninja
+        run: pip install ninja
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build native library
+        run: |
+          cmake -S . -B build/windows -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DMAPKERN_TESTS=OFF -DMAPKERN_VIEWER=OFF
+          cmake --build build/windows --target mapkern_c
+      - name: Build SDK and demo
+        run: dotnet build platform/dotnet/Mapkern.slnx -c Release
+      - name: Pack
+        run: |
+          dotnet pack platform/dotnet/Mapkern/Mapkern.csproj -c Release -o out/nuget
+          dotnet pack platform/dotnet/Mapkern.WinForms/Mapkern.WinForms.csproj -c Release -o out/nuget
+      - uses: actions/upload-artifact@v5
+        with:
+          name: dotnet
+          path: out/nuget/*.nupkg
