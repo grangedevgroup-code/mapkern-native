@@ -4,6 +4,7 @@
 #include <set>
 
 #include "core/url.hpp"
+#include "geo/globe.hpp"
 #include "geo/mercator.hpp"
 #include "map/map_impl.hpp"
 #include "map/dem_source.hpp"
@@ -78,6 +79,7 @@ MapImpl::MapImpl(const MapOptions& o) : options(o) {
   mailbox.setWake([this] {
     if (invalidateCallback) invalidateCallback();
   });
+  if (o.controls) setupControls();
   if (!o.style.empty()) setStyle(o.style);
 }
 
@@ -135,6 +137,7 @@ void MapImpl::shutdownGraphics() {
   } else {
     painter.resetGpu();
   }
+  if (overlay) overlay->resetGpu(live);
   graphics = false;
 }
 
@@ -231,6 +234,7 @@ void MapImpl::applyStyle(const Value& style, const std::vector<std::string>& ski
   layersChanged();
   for (auto& [id, s] : sources)
     if (!s->loaded()) s->load();
+  if (overlay) ensureDemoTerrain();
   MapEvent e;
   e.type = "styleload";
   e.skipped = problems;
@@ -426,6 +430,12 @@ void MapImpl::stop() {
 }
 
 void MapImpl::pointerDown(int id, double x, double y) {
+  if (overlay && overlay->pointerDown(id, x, y)) {
+    overlayPointers.insert(id);
+    invalidate();
+    return;
+  }
+  invalidate();
   stop();
   pointers[id] = {x, y};
   gesture.samples.clear();
@@ -447,6 +457,7 @@ void MapImpl::pointerDown(int id, double x, double y) {
 }
 
 void MapImpl::pointerMove(int id, double x, double y) {
+  if (overlayPointers.contains(id)) return;
   auto it = pointers.find(id);
   if (it == pointers.end()) return;
   it->second = {x, y};
@@ -467,6 +478,11 @@ void MapImpl::pointerMove(int id, double x, double y) {
 }
 
 void MapImpl::pointerUp(int id, double x, double y) {
+  if (overlayPointers.erase(id)) {
+    if (overlay) overlay->pointerUp(id, x, y);
+    invalidate();
+    return;
+  }
   pointers.erase(id);
   if (pointers.empty() && gesture.samples.size() >= 2) {
     const auto& first = gesture.samples.front();
@@ -500,6 +516,7 @@ std::string MapImpl::attribution() const {
   for (const auto& [id, s] : sources) {
     bool used = false;
     for (const auto& l : layers) used = used || (l->source == id && l->visible);
+    used = used || (terrain && terrain->source == s.get());
     const std::string a = s->attribution();
     if (used && !a.empty() && std::find(parts.begin(), parts.end(), a) == parts.end()) parts.push_back(a);
   }
@@ -602,10 +619,115 @@ bool MapImpl::renderTarget(const FrameTarget& target) {
   frame.now = start;
   frame.clearColor = {0, 0, 0, 0};
   frame.terrain = terrain.get();
+  if (overlay) {
+    updateOverlay();
+    frame.overlay = overlay.get();
+  }
   painter.render(frame, target);
   dirty = painter.drapesBehind() || painter.labelsAnimating();
   lastFrameMs = nowMs() - start;
   return true;
+}
+
+std::vector<std::pair<std::string, std::string>> defaultBasemaps() {
+  return {{"Map", "https://tiles.openfreemap.org/styles/liberty"},
+          {"Satellite",
+           R"j({"version":1,"sources":{"imagery":{"type":"raster","tiles":["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],"tileSize":256,"maxZoom":19,"attribution":"Esri, Vantor, Earthstar Geographics, and the GIS User Community"}},"layers":[{"id":"imagery","type":"raster","source":"imagery"}]})j"}};
+}
+
+std::string defaultTerrainSource() {
+  return R"j({"type":"dem","tiles":["https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"],"tileSize":512,"maxZoom":12,"encoding":"terrarium","attribution":"<a href=\"https://mapterhorn.com/attribution\">&copy; Mapterhorn</a>"})j";
+}
+
+void MapImpl::setupControls() {
+  overlay = std::make_unique<ui::Overlay>();
+  overlay->touch = options.touchControls;
+  if (options.basemaps.empty()) options.basemaps = defaultBasemaps();
+  if (options.terrainSource.empty()) options.terrainSource = defaultTerrainSource();
+  for (const auto& [name, style] : options.basemaps) overlay->basemaps.push_back({name, style});
+  for (size_t i = 0; i < options.basemaps.size(); i++)
+    if (options.basemaps[i].second == options.style) overlay->selected = i;
+  overlay->actions.zoomIn = [this] {
+    CameraOptions c;
+    c.zoom = std::min(transform.maxZoom, transform.zoom() + 1);
+    easeTo(c, {});
+  };
+  overlay->actions.zoomOut = [this] {
+    CameraOptions c;
+    c.zoom = std::max(transform.lowestZoom(), transform.zoom() - 1);
+    easeTo(c, {});
+  };
+  overlay->actions.resetNorth = [this] {
+    CameraOptions c;
+    c.bearing = 0;
+    c.pitch = 0;
+    easeTo(c, {});
+  };
+  overlay->actions.selectBasemap = [this](size_t i) {
+    if (i < options.basemaps.size()) setStyle(options.basemaps[i].second);
+  };
+  overlay->actions.setView = [this](const std::string& v) { setView(v); };
+  const std::string start = options.view == "tilted" || options.view == "terrain" ? options.view : "globe";
+  transform.setProjection(start == "globe" ? Projection::Globe : Projection::Mercator);
+  if (start == "tilted" && transform.pitch() < 10) transform.setPitch(60);
+  if (start != "tilted") transform.setPitch(0);
+}
+
+void MapImpl::ensureDemoTerrain() {
+  if (options.terrainSource.empty()) return;
+  const std::string id = "mapkern-terrain";
+  if (!sources.contains(id)) {
+    auto spec = parseJson(options.terrainSource);
+    if (!spec) return;
+    addSource(id, *spec);
+  }
+  if (!styleRoot["terrain"].isObject()) setTerrain(Value(Object{{"source", id}, {"exaggeration", 1.0}, {"relief", 0.5}}));
+}
+
+std::string MapImpl::currentView() {
+  if (transform.projection() == Projection::Globe) return "globe";
+  return transform.pitch() > 5 ? "tilted" : "terrain";
+}
+
+void MapImpl::setView(const std::string& v) {
+  ensureDemoTerrain();
+  transform.setProjection(v == "globe" ? Projection::Globe : Projection::Mercator);
+  const double pitch = v == "tilted" ? std::min(60.0, options.maxPitch) : 0;
+  const double fit = v == "globe" ? globeFitZoom(transform.width, transform.height, transform.fov(), transform.center().lat)
+                                  : std::numeric_limits<double>::infinity();
+  const double zoom = std::min(transform.zoom(), fit);
+  CameraOptions c;
+  c.pitch = pitch;
+  c.zoom = zoom;
+  AnimationOptions a;
+  a.duration = zoom < transform.zoom() - 1 ? 1200 : 500;
+  easeTo(c, a);
+}
+
+static double haversineMeters(LngLat a, LngLat b) {
+  const double k = kPi / 180;
+  const double dlat = (b.lat - a.lat) * k, dlng = (b.lng - a.lng) * k;
+  const double h = std::sin(dlat / 2) * std::sin(dlat / 2) + std::cos(a.lat * k) * std::cos(b.lat * k) * std::sin(dlng / 2) * std::sin(dlng / 2);
+  return 2 * kEarthRadius * std::asin(std::min(1.0, std::sqrt(h)));
+}
+
+void MapImpl::updateOverlay() {
+  ui::OverlayState s;
+  s.width = transform.width;
+  s.height = transform.height;
+  s.pixelRatio = pixelRatio;
+  s.zoom = transform.zoom();
+  s.minZoom = transform.lowestZoom();
+  s.maxZoom = transform.maxZoom;
+  s.bearing = transform.bearing();
+  s.pitch = transform.pitch();
+  s.view = currentView();
+  s.attribution = ui::plainAttribution(attribution());
+  const double h = transform.height / 2;
+  const auto a = transform.unprojectLngLat(0, h);
+  const auto b = transform.unprojectLngLat(100, h);
+  s.metersPerMaxWidth = a && b ? haversineMeters(*a, *b) : 0;
+  overlay->update(s);
 }
 
 void MapImpl::setTerrain(const Value& spec) {
@@ -787,7 +909,10 @@ void Map::pointerDown(int id, double x, double y) { impl_->pointerDown(id, x, y)
 void Map::pointerMove(int id, double x, double y) { impl_->pointerMove(id, x, y); }
 void Map::pointerUp(int id, double x, double y) { impl_->pointerUp(id, x, y); }
 void Map::wheel(double d, double x, double y) { impl_->wheel(d, x, y); }
-void Map::doubleTap(double x, double y) { zoomBy(1, x, y, true); }
+void Map::doubleTap(double x, double y) {
+  if (impl_->overlay && impl_->overlay->contains(x, y)) return;
+  zoomBy(1, x, y, true);
+}
 std::optional<std::pair<double, double>> Map::unproject(double x, double y) const {
   auto ll = impl_->transform.unprojectLngLat(x, y);
   if (!ll) return std::nullopt;
