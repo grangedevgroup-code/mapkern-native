@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Mapkern</RootNamespace>
+    <AssemblyName>Mapkern.Native</AssemblyName>
+    <PackageId>Mapkern.Native</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>grangedevgroup</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Description>Native vector map engine with 2D, 3D terrain and globe views.</Description>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="../../../build/windows/mapkern.dll" Condition="Exists('../../../build/windows/mapkern.dll')" Pack="true" PackagePath="runtimes/win-x64/native" CopyToOutputDirectory="PreserveNewest" Link="mapkern.dll" />
+  </ItemGroup>
+</Project>
