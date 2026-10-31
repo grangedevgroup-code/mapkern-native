@@ -52,6 +52,8 @@ jobs:
             -build/**
             -**/CMakeFiles/**
             -src/render/shaders/map.glsl.h
+            -third_party/**
+            -test/**:cpp/unused-static-function
           input: sarif/results.sarif
           output: sarif/results.sarif
       - uses: github/codeql-action/upload-sarif@v4
