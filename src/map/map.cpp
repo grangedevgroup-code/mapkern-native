@@ -597,6 +597,7 @@ bool MapImpl::renderTarget(const FrameTarget& target) {
   frame.now = start;
   frame.clearColor = {0, 0, 0, 0};
   frame.terrain = terrain.get();
+  frame.moving = motion.has_value() || gestures.touching() || gestures.animating();
   if (overlay) {
     updateOverlay();
     frame.overlay = overlay.get();
