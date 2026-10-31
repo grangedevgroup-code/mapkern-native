@@ -58,9 +58,12 @@ class Source {
   virtual void setLayers(const std::vector<const StyleLayer*>&) {}
   virtual bool adopt(const Value&) { return false; }
   virtual void retryFailed() {}
+  virtual void setCacheBytes(size_t bytes) { cacheBytes_ = bytes; }
 
  protected:
   ManagerEvents tileEvents();
+  size_t cacheBudget() const { return cacheBytes_ ? cacheBytes_ : ctx_.cacheBytes; }
+  size_t cacheBytes_ = 0;
   SourceContext& ctx_;
   std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
 };
