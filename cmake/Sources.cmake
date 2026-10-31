@@ -20,7 +20,9 @@ set(MAPKERN_CORE_SOURCES
   src/tiles/cache.cpp
   src/tiles/fetch.cpp
   src/tiles/scheduler.cpp
+  src/text/glyphs.cpp
   src/worker/buckets.cpp
+  src/worker/symbols.cpp
   src/worker/vector_task.cpp
 )
 
@@ -31,4 +33,5 @@ set(MAPKERN_RENDER_SOURCES
   src/render/gpu.cpp
   src/render/paint_table.cpp
   src/render/painter.cpp
+  src/text/labels.cpp
 )
