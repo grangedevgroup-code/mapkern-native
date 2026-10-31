@@ -337,7 +337,7 @@ void Overlay::layout(const OverlayState& s) {
     }
   }
 
-  double left = H - m;
+  const double left = H - m;
   if (!s.attribution.empty()) {
     const double size = touch ? 32 : 26;
     const double px = 11, line = 15;
