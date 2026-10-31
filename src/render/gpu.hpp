@@ -11,7 +11,7 @@
 
 namespace mapkern {
 
-enum class Program { Solid, Fill, FillClip, Line, LineClip, Circle, CircleClip, Extrusion, ExtrusionClip, Raster, Globe, Atmosphere, Pole, Text, Icon, Count };
+enum class Program { Solid, Fill, FillClip, Line, LineClip, Circle, CircleClip, Extrusion, ExtrusionClip, Raster, Globe, Atmosphere, Pole, Text, Icon, Terrain, Hillshade, Count };
 
 enum class Blend { None, Premultiplied, Additive };
 enum class StencilMode { Off, Write, Equal, Mask };
@@ -72,6 +72,7 @@ class Gpu {
   void updateTexture(GpuTexture& tex, const void* pixels, size_t bytes);
   const GpuTexture& blankTexture() const { return blank_; }
   const GpuTexture& blankFloatTexture() const { return blankFloat_; }
+  const GpuTexture& whiteTexture() const { return white_; }
   PassFormat defaultFormat() const;
   size_t uploadedBytes() const { return uploaded_; }
   void resetUploadCounter() { uploaded_ = 0; }
@@ -85,6 +86,7 @@ class Gpu {
   sg_buffer quad_{};
   GpuTexture blank_;
   GpuTexture blankFloat_;
+  GpuTexture white_;
   size_t uploaded_ = 0;
 };
 
