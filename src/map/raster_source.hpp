@@ -15,6 +15,7 @@ namespace mapkern {
 
 struct RasterTileData {
   std::optional<Image> image;
+  MipChain mips;
   GpuTexture texture;
   int width = 0;
   int height = 0;
@@ -48,7 +49,7 @@ class RasterSource : public Source {
   }
   void load() override;
   void update(Transform& transform, double now, const std::vector<Transform*>& predicted) override;
-  bool uploadPending(double deadline, double now) override;
+  bool uploadPending(UploadBudget& budget, double now) override;
   bool isIdle() const override;
   bool isFading() const override { return manager && manager->isFading(); }
   std::optional<TileStats> stats() const override;
