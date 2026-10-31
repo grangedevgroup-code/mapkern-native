@@ -18,6 +18,7 @@
 #include "style/layer.hpp"
 #include "terrain/terrain.hpp"
 #include "text/labels.hpp"
+#include "ui/overlay.hpp"
 
 namespace mapkern {
 
@@ -62,6 +63,7 @@ struct FrameInput {
   double now = 0;
   Color clearColor{0, 0, 0, 0};
   Terrain* terrain = nullptr;
+  ui::Overlay* overlay = nullptr;
 };
 
 struct PaintStats {
