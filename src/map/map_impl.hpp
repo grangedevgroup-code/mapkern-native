@@ -64,6 +64,7 @@ class MapImpl {
   void addSource(const std::string& id, const Value& spec);
   void loadSprite(const Value& sprite);
   void removeSource(const std::string& id);
+  void shareTileBudget();
   void addLayer(const Value& spec, const std::string& beforeId);
   void removeLayer(const std::string& id);
   StyleLayer* layer(const std::string& id);
