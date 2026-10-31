@@ -353,6 +353,16 @@ void LabelRenderer::setGlyphs(const std::string& tmpl, std::shared_ptr<ResponseS
   reflow_ = true;
 }
 
+void LabelRenderer::resetGpu() {
+  glyphTexture_ = {};
+  iconTexture_ = {};
+  textBuffer_ = {};
+  iconBuffer_ = {};
+  indexBuffer_ = {};
+  indexQuads_ = 0;
+  glyphGeneration_ = iconGeneration_ = UINT64_MAX;
+}
+
 void LabelRenderer::clear() {
   labels_.clear();
   layoutCache_.clear();
