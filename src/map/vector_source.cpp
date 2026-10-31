@@ -220,7 +220,7 @@ void VectorSource::start(TileSet set) {
   tiling.bounds = set.bounds;
   ManagerOptions options;
   options.fadeDuration = 0;
-  options.cacheBytes = ctx_.cacheBytes;
+  options.cacheBytes = cacheBudget();
   options.prefetchLimit = ctx_.prefetchLimit;
   manager = std::make_unique<TileManager<VectorTileData>>(id, tiling, loader_, *ctx_.scheduler, options, tileEvents());
   if (ctx_.content) ctx_.content(id);
