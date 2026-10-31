@@ -94,7 +94,11 @@ class Diagnostics(context: Context, private val map: MapView, private val option
             event("start", staticInfo())
         }
         app.registerComponentCallbacks(memoryCallbacks)
-        if (Build.VERSION.SDK_INT >= 29) power.addThermalStatusListener(handler::post, thermalListener)
+        if (Build.VERSION.SDK_INT >= 29) {
+            val listener = PowerManager.OnThermalStatusChangedListener { status -> event("thermal", JSONObject().put("status", status)) }
+            power.addThermalStatusListener(Executor { handler.post(it) }, listener)
+            thermalListener = listener
+        }
         map.addListener { type, message -> if (type == "error") handler.post { event("engineError", JSONObject().put("message", message)) } }
         previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
