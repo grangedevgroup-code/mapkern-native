@@ -135,6 +135,9 @@ namespace {
 
 constexpr int kGrid = 64;
 constexpr size_t kDrapeCacheBytes = 32u << 20;
+constexpr double kRestingZoomStep = 0.05;
+constexpr double kMovingZoomStep = 0.25;
+constexpr double kInfinity = std::numeric_limits<double>::infinity();
 const Color kSpace{0.035, 0.045, 0.085, 1};
 const Color kGlobeLand{0.11, 0.19, 0.27, 1};
 
