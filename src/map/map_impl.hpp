@@ -18,6 +18,7 @@
 #include "render/painter.hpp"
 #include "render/paint_table.hpp"
 #include "style/layer.hpp"
+#include "terrain/terrain.hpp"
 #include "tiles/cache.hpp"
 #include "tiles/scheduler.hpp"
 
@@ -65,6 +66,10 @@ class MapImpl {
   void error(const std::string& code, const std::string& message, const std::string& sourceId = "");
   std::string attribution() const;
   MapStats stats() const;
+  void updateTerrain();
+  std::optional<double> cameraFloor(Terrain& terrain);
+  double nearPeak(Terrain& terrain);
+  void setTerrain(const Value& spec);
   void downloadRegion(double west, double south, double east, double north, int minZoom, int maxZoom,
                       std::function<void(size_t, size_t)> progress);
 
@@ -79,6 +84,7 @@ class MapImpl {
   Value styleRoot;
   bool styleLoaded = false;
   FeatureStates states;
+  std::unique_ptr<Terrain> terrain;
   Painter painter;
   bool graphics = false;
   bool dirty = true;
