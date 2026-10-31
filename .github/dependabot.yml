@@ -4,15 +4,35 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns:
+          - "*"
   - package-ecosystem: gradle
     directory: /platform/android
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      android:
+        patterns:
+          - "*"
   - package-ecosystem: nuget
     directory: /platform/dotnet
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      dotnet:
+        patterns:
+          - "*"
   - package-ecosystem: swift
-    directory: /
+    directory: /platform/apple
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
