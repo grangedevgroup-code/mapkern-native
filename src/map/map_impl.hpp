@@ -114,12 +114,20 @@ class MapImpl {
   Gestures gestures{transform, GestureHost{[this](double x, double y) { return pickWorld(x, y); }, [this] { motion.reset(); },
                                            [this] { invalidate(); }, [this](double d, double x, double y) { easeZoom(d, x, y); }}};
 
+  struct SlowFrame {
+    double at = 0, ms = 0, tick = 0, upload = 0, drapes = 0, labels = 0;
+    uint64_t draws = 0;
+  };
   struct FrameWindow {
-    uint64_t frames = 0, slow = 0, intervals = 0, draws = 0, drawsMax = 0;
+    uint64_t frames = 0, slow = 0, intervals = 0, draws = 0, drawsMax = 0, drapes = 0;
     double cpuSum = 0, cpuMax = 0, tickSum = 0, tickMax = 0, intervalSum = 0, intervalMax = 0;
+    double uploadSum = 0, uploadMax = 0, drapeSum = 0, drapeMax = 0, labelSum = 0, labelMax = 0;
     std::array<uint64_t, 6> buckets{};
+    std::array<SlowFrame, 4> worst{};
   };
   FrameWindow frameWindow;
+  double uploadMs = 0;
+  size_t uploadTurn = 0;
   double lastFrameStart = 0;
   double lastSnapshot = 0;
   diag::Totals lastTotals;
