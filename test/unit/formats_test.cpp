@@ -167,3 +167,55 @@ TEST("pmtiles: reads a local archive when present") {
   }
   EXPECT(found > 0);
 }
+
+#include <fstream>
+#include <sstream>
+
+#include "geo/tessellate.hpp"
+#include "style/import.hpp"
+#include "worker/vector_task.hpp"
+
+TEST("tessellate: square with a hole covers the right area") {
+  std::vector<double> coords{0, 0, 10, 0, 10, 10, 0, 10, 4, 4, 4, 6, 6, 6, 6, 4};
+  std::vector<uint32_t> out;
+  triangulate(coords, {4}, out);
+  EXPECT(out.size() % 3 == 0 && !out.empty());
+  EXPECT_NEAR(triangleArea(coords, out), 96, 1e-9);
+}
+
+TEST("buckets: Liberty layers build from a real tile") {
+  const std::string path = "../../Mapkern GL JS/data/cli-test.pmtiles";
+  std::ifstream in("../data/liberty.json", std::ios::binary);
+  if (!std::filesystem::exists(path) || !in) {
+    std::printf("    skipped: local data not present\n");
+    return;
+  }
+  std::stringstream ss;
+  ss << in.rdbuf();
+  const auto style = importStyle(*parseJson(ss.str()), "https://tiles.openfreemap.org/styles/liberty");
+  std::vector<LayerProgram> programs;
+  for (const auto& l : style.style["layers"].asArray()) {
+    StyleLayer layer(l);
+    if (auto p = layerProgram(layer)) programs.push_back(std::move(*p));
+  }
+  PmTilesReader reader(std::make_shared<FileSource>(path));
+  const auto& h = reader.header();
+  const int z = h.maxZoom;
+  const double n = std::exp2(z);
+  const uint32_t x = static_cast<uint32_t>((h.centerLon + 180) / 360 * n);
+  const double lat = h.centerLat * 3.14159265358979 / 180;
+  const uint32_t y = static_cast<uint32_t>((1 - std::log(std::tan(lat) + 1 / std::cos(lat)) / 3.14159265358979) / 2 * n);
+  const auto raw = reader.tile(z, x, y);
+  EXPECT(raw.has_value());
+  if (!raw) return;
+  const auto result = buildVectorTile(decompressPm(*raw, h.tileCompression), z, x, y, programs, false, {});
+  size_t fills = 0, lines = 0;
+  for (const auto& b : result.buckets) {
+    if (b.type == BucketType::Fill) fills++;
+    if (b.type == BucketType::Line) lines++;
+    if (b.main) EXPECT(b.main->indices.size() % 3 == 0);
+  }
+  std::printf("    %zu buckets (%zu fill, %zu line), %zu features, %.1f ms\n", result.buckets.size(), fills, lines, result.featureCount,
+              result.decodeMs);
+  EXPECT(!result.buckets.empty());
+}
