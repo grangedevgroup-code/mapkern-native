@@ -116,6 +116,8 @@ double arg(int argc, char** argv, int& i) { return i + 1 < argc ? std::atof(argv
 }
 
 sapp_desc sokol_main(int argc, char* argv[]) {
+  viewer.options.controls = true;
+  viewer.options.touchControls = false;
   for (int i = 1; i < argc; i++) {
     const std::string a = argv[i];
     if (a == "--style" && i + 1 < argc) viewer.options.style = argv[++i];
@@ -125,7 +127,12 @@ sapp_desc sokol_main(int argc, char* argv[]) {
     } else if (a == "--zoom") viewer.options.zoom = arg(argc, argv, i);
     else if (a == "--pitch") viewer.options.pitch = arg(argc, argv, i);
     else if (a == "--bearing") viewer.options.bearing = arg(argc, argv, i);
-    else if (a == "--flat") viewer.options.globe = false;
+    else if (a == "--flat") {
+      viewer.options.globe = false;
+      viewer.options.view = "terrain";
+    } else if (a == "--view" && i + 1 < argc) viewer.options.view = argv[++i];
+    else if (a == "--no-controls") viewer.options.controls = false;
+    else if (a == "--touch") viewer.options.touchControls = true;
     else if (a == "--offline") viewer.options.offline = true;
     else if (a == "--cache" && i + 1 < argc) viewer.options.cacheDirectory = argv[++i];
     else if (a == "--exit-after") viewer.exitAfter = static_cast<int>(arg(argc, argv, i));
