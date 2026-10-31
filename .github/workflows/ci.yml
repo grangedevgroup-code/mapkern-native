@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-2025
+          - name: Linux
+            os: ubuntu-24.04
+          - name: Linux arm64
+            os: ubuntu-24.04-arm
+          - name: macOS
+            os: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install packages
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libcurl4-openssl-dev libgl-dev libegl-dev libx11-dev libxi-dev libxcursor-dev xvfb mesa-utils
+      - name: Install Ninja
+        if: runner.os != 'Linux'
+        run: pip install ninja
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        working-directory: test
+        run: ../build/test/mapkern_unit
