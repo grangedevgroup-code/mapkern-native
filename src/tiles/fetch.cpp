@@ -203,6 +203,7 @@ void fetchBytes(const RequestParameters& params, CancelToken cancel, int timeout
     const double now = wallMs();
     if (state == StoredState::Fresh || (state != StoredState::Missing && (offline() || serverDown(params.url, now)))) {
       if (auto hit = cache->read(params.url)) {
+        diag::cacheServed(hit->data ? hit->data->size() : 0, state != StoredState::Fresh);
         FetchResult r;
         r.empty = false;
         r.data = hit->data;
