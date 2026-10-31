@@ -10,7 +10,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        map = MapView(this, options = MapOptions())
+        map = MapView(this, options = MapOptions(longitude = -122.33, latitude = 47.61, zoom = 2.5, controls = true))
         setContentView(map)
     }
 
