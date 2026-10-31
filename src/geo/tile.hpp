@@ -28,15 +28,15 @@ struct Rect {
 };
 
 inline uint64_t tileKey(int z, int x, int y) {
-  return (static_cast<uint64_t>(z) << 50) | (static_cast<uint64_t>(y) << 25) | static_cast<uint64_t>(x);
+  return (static_cast<uint64_t>(z) << 48) | (static_cast<uint64_t>(y) << 24) | static_cast<uint64_t>(x);
 }
 inline uint64_t tileKey(TileId t) { return tileKey(t.z, t.x, t.y); }
 inline TileId tileFromKey(uint64_t k) {
-  return {static_cast<int>(k >> 50), static_cast<int>(k & 0x1ffffff), static_cast<int>((k >> 25) & 0x1ffffff)};
+  return {static_cast<int>((k >> 48) & 0x1f), static_cast<int>(k & 0xffffff), static_cast<int>((k >> 24) & 0xffffff)};
 }
 
 inline uint64_t slotKey(const TileSlot& s) {
-  return tileKey(s.z, s.x, s.y) ^ (static_cast<uint64_t>(static_cast<uint32_t>(s.wrap) & 0x3fff) << 50 << 5);
+  return tileKey(s.z, s.x, s.y) | (static_cast<uint64_t>(static_cast<uint32_t>(s.wrap) & 0x7ff) << 53);
 }
 
 inline bool isValidTile(int z, int x, int y) {
