@@ -31,6 +31,9 @@ class MapImpl {
   void initGraphics(const GraphicsEnvironment& environment);
   void shutdownGraphics();
   bool render(const RenderSurface& surface);
+  bool renderSwapchain(const sg_swapchain& swapchain);
+  bool renderTarget(const FrameTarget& target);
+  void initGraphicsNative(const sg_environment& environment);
   bool needsRender() const;
   void tick(double now);
   void invalidate();
