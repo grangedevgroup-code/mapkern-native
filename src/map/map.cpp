@@ -566,6 +566,7 @@ bool MapImpl::renderSwapchain(const sg_swapchain& swapchain) {
 bool MapImpl::renderTarget(const FrameTarget& target) {
   const double start = nowMs();
   tick(start);
+  const double tickMs = nowMs() - start;
   if (!graphics) return false;
   RenderView view;
   view.zoom = transform.zoom();
