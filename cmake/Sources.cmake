@@ -20,6 +20,7 @@ set(MAPKERN_CORE_SOURCES
   src/tiles/cache.cpp
   src/tiles/fetch.cpp
   src/tiles/scheduler.cpp
+  src/terrain/dem.cpp
   src/text/glyphs.cpp
   src/worker/buckets.cpp
   src/worker/symbols.cpp
@@ -29,6 +30,8 @@ set(MAPKERN_CORE_SOURCES
 set(MAPKERN_RENDER_SOURCES
   src/map/map.cpp
   src/map/raster_source.cpp
+  src/map/dem_source.cpp
+  src/terrain/terrain.cpp
   src/map/vector_source.cpp
   src/render/gpu.cpp
   src/render/paint_table.cpp
