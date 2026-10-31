@@ -621,3 +621,102 @@ void main() {
 @end
 
 @program pole pole_vs pole_fs
+
+@vs label_vs
+layout(binding=0) uniform label_vs_params {
+  vec4 u_view;
+};
+in vec2 a_pos;
+in vec2 a_uv;
+in vec4 a_color;
+in vec4 a_halo;
+in vec4 a_params;
+out vec2 v_uv;
+out vec4 v_color;
+out vec4 v_halo;
+out vec4 v_params;
+void main() {
+  v_uv = a_uv / u_view.zw;
+  v_color = a_color;
+  v_halo = a_halo;
+  v_params = a_params;
+  gl_Position = vec4(a_pos.x / u_view.x * 2.0 - 1.0, 1.0 - a_pos.y / u_view.y * 2.0, 0.0, 1.0);
+}
+@end
+
+@fs text_fs
+layout(binding=1) uniform label_fs_params {
+  vec4 u_info;
+};
+layout(binding=0) uniform texture2D atlas_tex;
+layout(binding=0) uniform sampler atlas_smp;
+in vec2 v_uv;
+in vec4 v_color;
+in vec4 v_halo;
+in vec4 v_params;
+out vec4 frag_color;
+void main() {
+  float d = texture(sampler2D(atlas_tex, atlas_smp), v_uv).r;
+  float opacity = v_params.x;
+  float scale = max(v_params.y, 0.05);
+  float radius = u_info.z;
+  float gamma = 0.8 / (radius * scale * u_info.y);
+  float edge = 0.75;
+  if (u_info.x < 0.5) {
+    float halo = v_params.z;
+    if (halo <= 0.0 || v_halo.a <= 0.0) discard;
+    float halo_edge = max(0.05, edge - halo / (radius * scale));
+    float blur = v_params.w / (radius * scale);
+    float a = smoothstep(halo_edge - gamma - blur, halo_edge + gamma, d);
+    if (a <= 0.0) discard;
+    frag_color = v_halo * a * opacity;
+  } else {
+    float a = smoothstep(edge - gamma, edge + gamma, d);
+    if (a <= 0.0) discard;
+    frag_color = v_color * a * opacity;
+  }
+}
+@end
+
+@program text label_vs text_fs
+
+@fs icon_fs
+layout(binding=1) uniform label_fs_params {
+  vec4 u_info;
+};
+layout(binding=0) uniform texture2D atlas_tex;
+layout(binding=0) uniform sampler atlas_smp;
+in vec2 v_uv;
+in vec4 v_color;
+in vec4 v_halo;
+in vec4 v_params;
+out vec4 frag_color;
+void main() {
+  vec4 texel = texture(sampler2D(atlas_tex, atlas_smp), v_uv);
+  float opacity = v_params.x;
+  if (v_params.w < 0.5) {
+    if (u_info.x < 0.5) discard;
+    frag_color = texel * opacity;
+    return;
+  }
+  float d = texel.a;
+  float scale = max(v_params.y, 0.05);
+  float radius = u_info.z;
+  float gamma = 0.8 / (radius * scale * u_info.y);
+  float edge = 0.75;
+  if (u_info.x < 0.5) {
+    float halo = v_params.z;
+    if (halo <= 0.0 || v_halo.a <= 0.0) discard;
+    float halo_edge = max(0.05, edge - halo / (radius * scale));
+    float a = smoothstep(halo_edge - gamma, halo_edge + gamma, d);
+    if (a <= 0.0) discard;
+    frag_color = v_halo * a * opacity;
+  } else {
+    float a = smoothstep(edge - gamma, edge + gamma, d);
+    if (a <= 0.0) discard;
+    frag_color = v_color * a * opacity;
+  }
+}
+@end
+
+@program icon label_vs icon_fs
