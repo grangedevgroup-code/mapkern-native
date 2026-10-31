@@ -255,28 +255,42 @@ void Canvas::fill(const Shape& shape, const Affine& m, const Color& color) {
   if (rings.empty()) return;
   const int x0 = std::max(0, static_cast<int>(std::floor(minX))), x1 = std::min(width_, static_cast<int>(std::ceil(maxX)) + 1);
   const int y0 = std::max(0, static_cast<int>(std::floor(minY))), y1 = std::min(height_, static_cast<int>(std::ceil(maxY)) + 1);
-  constexpr int kSub = 4;
-  for (int py = y0; py < y1; py++)
-    for (int px = x0; px < x1; px++) {
-      int inside = 0;
-      for (int sy = 0; sy < kSub; sy++)
-        for (int sx = 0; sx < kSub; sx++) {
-          const double qx = px + (sx + 0.5) / kSub, qy = py + (sy + 0.5) / kSub;
-          int winding = 0;
-          for (const auto& ring : rings)
-            for (size_t i = 0; i < ring.size(); i++) {
-              const auto& a = ring[i];
-              const auto& b = ring[(i + 1) % ring.size()];
-              if (a[1] <= qy) {
-                if (b[1] > qy && (b[0] - a[0]) * (qy - a[1]) - (qx - a[0]) * (b[1] - a[1]) > 0) winding++;
-              } else if (b[1] <= qy && (b[0] - a[0]) * (qy - a[1]) - (qx - a[0]) * (b[1] - a[1]) < 0) {
-                winding--;
-              }
-            }
-          if (winding != 0) inside++;
+  if (x1 <= x0 || y1 <= y0) return;
+  constexpr int kSub = 5;
+  std::vector<double> cover(static_cast<size_t>(x1 - x0), 0.0);
+  std::vector<std::pair<double, int>> hits;
+  for (int py = y0; py < y1; py++) {
+    std::fill(cover.begin(), cover.end(), 0.0);
+    for (int sy = 0; sy < kSub; sy++) {
+      const double qy = py + (sy + 0.5) / kSub;
+      hits.clear();
+      for (const auto& ring : rings)
+        for (size_t i = 0; i < ring.size(); i++) {
+          const auto& a = ring[i];
+          const auto& b = ring[(i + 1) % ring.size()];
+          if ((a[1] <= qy) == (b[1] <= qy)) continue;
+          const double t = (qy - a[1]) / (b[1] - a[1]);
+          hits.emplace_back(a[0] + (b[0] - a[0]) * t, b[1] > a[1] ? 1 : -1);
         }
-      blend(px, py, color, static_cast<double>(inside) / (kSub * kSub));
+      std::sort(hits.begin(), hits.end());
+      int winding = 0;
+      for (size_t i = 0; i + 1 < hits.size(); i++) {
+        winding += hits[i].second;
+        if (winding == 0) continue;
+        const double xa = std::max<double>(x0, hits[i].first), xb = std::min<double>(x1, hits[i + 1].first);
+        if (xb <= xa) continue;
+        const int ia = static_cast<int>(std::floor(xa)), ib = static_cast<int>(std::floor(xb));
+        if (ia == ib) {
+          if (ia >= x0 && ia < x1) cover[ia - x0] += xb - xa;
+          continue;
+        }
+        if (ia >= x0 && ia < x1) cover[ia - x0] += ia + 1 - xa;
+        for (int x = ia + 1; x < ib && x < x1; x++) cover[x - x0] += 1;
+        if (ib >= x0 && ib < x1) cover[ib - x0] += xb - ib;
+      }
     }
+    for (int px = x0; px < x1; px++) blend(px, py, color, cover[px - x0] / kSub);
+  }
 }
 
 void Canvas::stroke(const Shape& shape, const Affine& m, double width, const Color& color) {
@@ -306,7 +320,7 @@ void Canvas::stroke(const Shape& shape, const Affine& m, double width, const Col
 }
 
 double Canvas::text(double x, double baseline, const std::string& text, double px, bool bold, const Color& color) {
-  const auto cps = decodeUtf8(text);
+  const auto cps = utf8::decode(text);
   double pen = x * scale_;
   const double base = baseline * scale_;
   std::vector<uint8_t> bmp;
@@ -323,14 +337,14 @@ double Canvas::text(double x, double baseline, const std::string& text, double p
 }
 
 double Canvas::measure(const std::string& text, double px, bool bold) {
-  const auto cps = decodeUtf8(text);
+  const auto cps = utf8::decode(text);
   double total = 0;
   std::vector<uint8_t> bmp;
   for (size_t i = 0; i < cps.size(); i++) {
     int w = 0, h = 0, l = 0, t = 0;
     double adv = 0, kern = 0;
-    if (!LocalFonts::get().bitmap(bold, cps[i], px * 4, bmp, w, h, l, t, adv, kern, i + 1 < cps.size() ? cps[i + 1] : 0)) break;
-    total += (adv + kern) / 4;
+    if (!LocalFonts::get().bitmap(bold, cps[i], px, bmp, w, h, l, t, adv, kern, i + 1 < cps.size() ? cps[i + 1] : 0)) break;
+    total += adv + kern;
   }
   return total;
 }
