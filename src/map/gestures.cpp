@@ -288,7 +288,11 @@ bool Gestures::step(double now) {
     const Inertia i = *inertia_;
     const double t = std::min(1.0, (now - i.start) / i.duration);
     const double k = 1 - (1 - t) * (1 - t);
-    place(i.anchor, i.from[0] + i.offset[0] * k, i.from[1] + i.offset[1] * k, true);
+    const double x = i.from[0] + i.offset[0] * k, y = i.from[1] + i.offset[1] * k;
+    place(i.anchor, x, y, true);
+    std::optional<Point3> anchor = i.anchor;
+    follow(anchor, x, y);
+    if (anchor) inertia_->anchor = *anchor;
     host_.changed();
     if (t >= 1) inertia_.reset();
     else busy = true;
