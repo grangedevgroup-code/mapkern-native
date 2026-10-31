@@ -125,7 +125,14 @@ void MapImpl::initGraphics(const GraphicsEnvironment& env) {
 
 void MapImpl::shutdownGraphics() {
   if (!graphics) return;
+  const bool live = sg_isvalid();
   for (auto& [id, s] : sources) s->reload();
+  if (live) {
+    painter.~Painter();
+    new (&painter) Painter();
+  } else {
+    painter.resetGpu();
+  }
   graphics = false;
 }
 
