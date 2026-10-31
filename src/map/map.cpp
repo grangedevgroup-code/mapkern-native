@@ -591,6 +591,25 @@ bool MapImpl::renderTarget(const FrameTarget& target) {
   painter.render(frame, target);
   dirty = painter.drapesBehind() || painter.labelsAnimating();
   lastFrameMs = nowMs() - start;
+  FrameWindow& f = frameWindow;
+  f.frames++;
+  f.cpuSum += lastFrameMs;
+  f.cpuMax = std::max(f.cpuMax, lastFrameMs);
+  f.tickSum += tickMs;
+  f.tickMax = std::max(f.tickMax, tickMs);
+  if (lastFrameMs > 16.7) f.slow++;
+  const uint64_t draws = static_cast<uint64_t>(painter.stats().drawCalls);
+  f.draws += draws;
+  f.drawsMax = std::max(f.drawsMax, draws);
+  if (lastFrameStart > 0 && start - lastFrameStart < 250) {
+    const double gap = start - lastFrameStart;
+    f.intervals++;
+    f.intervalSum += gap;
+    f.intervalMax = std::max(f.intervalMax, gap);
+    const int bucket = gap < 12 ? 0 : gap < 17 ? 1 : gap < 25 ? 2 : gap < 34 ? 3 : gap < 50 ? 4 : 5;
+    f.buckets[bucket]++;
+  }
+  lastFrameStart = start;
   return true;
 }
 
