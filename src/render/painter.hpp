@@ -17,6 +17,9 @@ namespace mapkern {
 
 struct FrameTarget {
   sg_swapchain swapchain{};
+  sg_attachments attachments{};
+  bool offscreen = false;
+  PassFormat format;
   int width = 0;
   int height = 0;
 };
@@ -48,19 +51,17 @@ class Painter {
   void drawBackground(const FrameInput& frame, const StyleLayer& layer);
   void drawRaster(const FrameInput& frame, const StyleLayer& layer, RasterSource& source);
   void drawVector(const FrameInput& frame, const StyleLayer& layer, VectorSource& source);
-  void drawMasks(const FrameInput& frame, const std::string& sourceId, const std::vector<RenderPiece<VectorTileData>>& pieces);
+  static bool clipped(const RenderPiece<VectorTileData>& piece);
+  void applyClip(const RenderPiece<VectorTileData>& piece, double extent);
   void drawFill(const FrameInput& frame, const StyleLayer& layer, VectorBucket& bucket, const RenderPiece<VectorTileData>& piece);
   void drawLine(const FrameInput& frame, const StyleLayer& layer, VectorBucket& bucket, const RenderPiece<VectorTileData>& piece);
   void drawCircle(const FrameInput& frame, const StyleLayer& layer, VectorBucket& bucket, const RenderPiece<VectorTileData>& piece);
   void drawExtrusion(const FrameInput& frame, const StyleLayer& layer, VectorBucket& bucket, const RenderPiece<VectorTileData>& piece);
-  sg_pipeline pipeline(Program program, sg_primitive_type primitive = SG_PRIMITIVETYPE_TRIANGLES, StencilMode stencil = StencilMode::Equal,
+  sg_pipeline pipeline(Program program, sg_primitive_type primitive = SG_PRIMITIVETYPE_TRIANGLES, StencilMode stencil = StencilMode::Off,
                        DepthMode depth = DepthMode::Off, bool colorWrite = true, Blend blend = Blend::Premultiplied);
   void bindPaint(sg_bindings& b, const PaintTable& paint);
 
   PassFormat format_;
-  std::string maskSource_;
-  int maskOffset_ = 0;
-  std::unordered_map<const void*, int> maskRefs_;
   PaintStats stats_;
 };
 
