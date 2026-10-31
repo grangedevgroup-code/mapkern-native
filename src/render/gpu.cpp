@@ -51,6 +51,8 @@ void Gpu::setup(const sg_environment& environment) {
   shaders_[static_cast<int>(Program::Line)] = sg_make_shader(mk_line_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::Circle)] = sg_make_shader(mk_circle_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::Extrusion)] = sg_make_shader(mk_extrusion_shader_desc(sg_query_backend()));
+  shaders_[static_cast<int>(Program::Text)] = sg_make_shader(mk_text_shader_desc(sg_query_backend()));
+  shaders_[static_cast<int>(Program::Icon)] = sg_make_shader(mk_icon_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::Globe)] = sg_make_shader(mk_globe_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::Atmosphere)] = sg_make_shader(mk_atmosphere_shader_desc(sg_query_backend()));
   shaders_[static_cast<int>(Program::Pole)] = sg_make_shader(mk_pole_shader_desc(sg_query_backend()));
@@ -199,6 +201,15 @@ sg_pipeline Gpu::pipeline(const PipelineKey& key) {
     case Program::Atmosphere:
     case Program::Pole:
       layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
+      break;
+    case Program::Text:
+    case Program::Icon:
+      layout.buffers[0].stride = 40;
+      layout.attrs[ATTR_mk_text_a_pos] = {0, 0, SG_VERTEXFORMAT_FLOAT2};
+      layout.attrs[ATTR_mk_text_a_uv] = {0, 8, SG_VERTEXFORMAT_FLOAT2};
+      layout.attrs[ATTR_mk_text_a_color] = {0, 16, SG_VERTEXFORMAT_UBYTE4N};
+      layout.attrs[ATTR_mk_text_a_halo] = {0, 20, SG_VERTEXFORMAT_UBYTE4N};
+      layout.attrs[ATTR_mk_text_a_params] = {0, 24, SG_VERTEXFORMAT_FLOAT4};
       break;
     case Program::Globe:
       layout.buffers[0].stride = 8;
