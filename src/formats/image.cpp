@@ -4,6 +4,7 @@
 #include <cstring>
 #include <new>
 
+#include "diag/diagnostics.hpp"
 #include "formats/wuffs.hpp"
 
 #ifdef MAPKERN_HAS_WEBP
