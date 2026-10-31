@@ -25,7 +25,11 @@ struct Args {
   double ratio = 1;
   double timeoutMs = 30000;
   double settleMs = 400;
+  double terrain = 0;
+  bool hillshade = false;
 };
+
+const char* kDem = R"j({"type":"dem","tiles":["https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"],"tileSize":512,"maxZoom":12,"encoding":"terrarium","attribution":"Mapterhorn"})j";
 
 double num(int argc, char** argv, int& i) { return i + 1 < argc ? std::atof(argv[++i]) : 0; }
 
@@ -52,6 +56,8 @@ int main(int argc, char** argv) {
     else if (s == "--offline") a.options.offline = true;
     else if (s == "--cache" && i + 1 < argc) a.options.cacheDirectory = argv[++i];
     else if (s == "--timeout") a.timeoutMs = num(argc, argv, i);
+    else if (s == "--terrain") a.terrain = num(argc, argv, i);
+    else if (s == "--hillshade") a.hillshade = true;
   }
   a.options.pixelRatio = a.ratio;
   const int pw = static_cast<int>(a.width * a.ratio), ph = static_cast<int>(a.height * a.ratio);
@@ -111,7 +117,22 @@ int main(int argc, char** argv) {
   const double start = mapkern::nowMs();
   double idleSince = 0;
   int frames = 0;
+  bool extrasAdded = false;
   while (true) {
+    if (!extrasAdded && impl.styleLoaded) {
+      extrasAdded = true;
+      if (a.terrain > 0 || a.hillshade) map.addSource("mk-dem", kDem);
+      if (a.hillshade) {
+        std::string before;
+        for (const auto& id : map.layerIds())
+          if (map.impl().layer(id) && map.impl().layer(id)->type == mapkern::LayerType::Symbol) {
+            before = id;
+            break;
+          }
+        map.addLayer(R"j({"id":"mk-hillshade","type":"hillshade","source":"mk-dem"})j", before);
+      }
+      if (a.terrain > 0) map.setTerrain("mk-dem", a.terrain, 0.5);
+    }
     impl.renderTarget(target);
     frames++;
     const double now = mapkern::nowMs();
