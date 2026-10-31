@@ -79,6 +79,7 @@ class Value {
 
 std::optional<Value> parseJson(std::string_view text, std::string* error = nullptr);
 std::string formatNumber(double v);
+double parseDouble(const char* begin, const char* end);
 Object withKey(Object object, std::string key, Value value);
 
 }
