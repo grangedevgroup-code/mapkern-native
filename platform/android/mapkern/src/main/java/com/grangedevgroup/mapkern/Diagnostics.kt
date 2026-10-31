@@ -120,7 +120,7 @@ class Diagnostics(context: Context, private val map: MapView, private val option
             app.unregisterComponentCallbacks(memoryCallbacks)
         } catch (ignored: Exception) {
         }
-        if (Build.VERSION.SDK_INT >= 29) power.removeThermalStatusListener(thermalListener)
+        if (Build.VERSION.SDK_INT >= 29) (thermalListener as? PowerManager.OnThermalStatusChangedListener)?.let { power.removeThermalStatusListener(it) }
         Thread.setDefaultUncaughtExceptionHandler(previousHandler)
         map.setGpuTiming(false)
         if (options.hud) map.setHud(emptyList())
