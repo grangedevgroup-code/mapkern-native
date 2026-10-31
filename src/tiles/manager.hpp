@@ -368,6 +368,7 @@ class TileManager {
   void destroy() {
     if (destroyed_) return;
     destroyed_ = true;
+    *alive_ = false;
     auto all = tiles_;
     for (auto& [k, t] : all) drop(t);
     pieces.clear();
@@ -696,11 +697,6 @@ class TileManager {
 
   void finishLoad(const std::shared_ptr<Tile<D>>& t, const CancelToken& controller, int64_t generation, bool refreshing,
                   LoadResult<D> result) {
-    struct Clear {
-      Tile<D>* t;
-      const CancelToken* c;
-      ~Clear() {}
-    };
     if (!t) {
       if (auto* data = std::get_if<std::shared_ptr<D>>(&result); data && *data) loader_->release(**data);
       return;
