@@ -39,6 +39,11 @@ void Gestures::place(const Point3& anchor, double x, double y, bool keepSize) {
   transform_.setLocationAtPoint(World{anchor[0], anchor[1]}, x, y, anchor[2], keepSize);
 }
 
+void Gestures::follow(std::optional<Point3>& anchor, double x, double y) {
+  if (transform_.globeAmount() <= 0) return;
+  if (auto under = host_.anchor(x, y)) anchor = under;
+}
+
 void Gestures::cancel() {
   mode_ = Mode{};
   pointers_.clear();
