@@ -64,7 +64,7 @@ inline uint32_t toUpper(uint32_t c) {
   if ((c >= 0xe0 && c <= 0xfe && c != 0xf7)) return c - 32;
   if (c == 0xff) return 0x178;
   if (c >= 0x100 && c <= 0x17f && c != 0x130 && c != 0x131 && c != 0x138 && c != 0x149 && c != 0x17f) {
-    const bool oddUpper = (c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17e);
+    const bool oddUpper = (c >= 0x139 && c <= 0x148) || c >= 0x179;
     if (oddUpper) return (c % 2 == 0) ? c - 1 : c;
     return (c % 2 == 1) ? c - 1 : c;
   }
@@ -80,7 +80,7 @@ inline uint32_t toLower(uint32_t c) {
   if (c >= 0xc0 && c <= 0xde && c != 0xd7) return c + 32;
   if (c == 0x178) return 0xff;
   if (c >= 0x100 && c <= 0x17f && c != 0x130 && c != 0x131 && c != 0x138 && c != 0x149 && c != 0x17f) {
-    const bool oddUpper = (c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17e);
+    const bool oddUpper = (c >= 0x139 && c <= 0x148) || c >= 0x179;
     if (oddUpper) return (c % 2 == 1) ? c + 1 : c;
     return (c % 2 == 0) ? c + 1 : c;
   }
