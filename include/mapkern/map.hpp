@@ -144,6 +144,8 @@ class Map {
   void pointerUp(int id, double x, double y, double timeMs = -1);
   void pointerCancel(int id);
   void wheel(double delta, double x, double y);
+  std::string diagnostics();
+  void setHud(std::vector<std::string> lines);
   void doubleTap(double x, double y);
 
   std::optional<std::pair<double, double>> unproject(double x, double y) const;
