@@ -460,8 +460,13 @@ void Painter::drawGlobe(const FrameInput& frame, const std::vector<CoveringTile>
   const Color base = blank[3] >= 0.999 ? blank : over(blank, kGlobeLand);
   const auto eye = t.globeCamera();
   const double strength = t.globeAmount() * (1 - 0.6 * std::clamp((t.zoom() - 4) / 5, 0.0, 1.0));
-  for (const auto& slot : slots) {
+  const double exaggeration = frame.terrain ? frame.terrain->exaggeration : 0;
+  const double relief = frame.terrain ? frame.terrain->relief : 0;
+  const double azimuth = (315 + t.bearing()) * kDeg;
+  for (size_t si = 0; si < slots.size(); si++) {
+    const CoveringTile& slot = slots[si];
     auto [entry, rect] = slotDrape(slot);
+    const SlotDem dem = slotDem(frame, si);
     const int n = 1 << slot.z;
     for (int cap = 0; cap < 2; cap++) {
       if (cap == 1 && !(slot.y == 0 || slot.y == n - 1)) continue;
