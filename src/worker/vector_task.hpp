@@ -1,10 +1,13 @@
 #pragma once
 
+#include <functional>
 #include <memory>
+#include <variant>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "formats/bytes.hpp"
 #include "formats/mvt.hpp"
 #include "style/expression.hpp"
 #include "style/layer.hpp"
