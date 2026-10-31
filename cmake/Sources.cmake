@@ -1,5 +1,6 @@
 set(MAPKERN_CORE_SOURCES
   src/camera/transform.cpp
+  src/core/async.cpp
   src/core/url.cpp
   src/core/value.cpp
   src/formats/bytes.cpp
@@ -7,11 +8,15 @@ set(MAPKERN_CORE_SOURCES
   src/formats/mvt.cpp
   src/formats/pmtiles.cpp
   src/formats/sqlite.cpp
+  src/net/http.cpp
   src/style/color.cpp
   src/style/expression.cpp
   src/style/import.cpp
   src/style/layer.cpp
   src/style/validate.cpp
+  src/tiles/cache.cpp
+  src/tiles/fetch.cpp
+  src/tiles/scheduler.cpp
 )
 
 set(MAPKERN_RENDER_SOURCES
