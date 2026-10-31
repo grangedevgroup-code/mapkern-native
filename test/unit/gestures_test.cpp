@@ -54,6 +54,26 @@ TEST("gestures: dragging the globe up and down keeps its size") {
   EXPECT(std::abs(up / before - 1) < 0.02);
 }
 
+TEST("gestures: dragging over the north pole turns the globe without jumping") {
+  Rig r(true, 1.6);
+  r.t.resize(600, 927);
+  r.t.setCenter(-100, 70);
+  double lng = r.t.center().lng, lat = r.t.center().lat, worst = 0, back = 0;
+  r.g.down(1, 420, 460, 0);
+  for (int i = 1; i <= 40; i++) {
+    r.g.move(1, 420 - i, 460 + i * 11.5, i * 16.0);
+    const auto c = r.t.center();
+    double d = std::abs(c.lng - lng);
+    if (d > 180) d = 360 - d;
+    worst = std::max(worst, d);
+    back = std::max(back, lat - c.lat);
+    lng = c.lng;
+    lat = c.lat;
+  }
+  EXPECT(worst < 15);
+  EXPECT(back < 0.5);
+}
+
 TEST("gestures: a drag keeps the grabbed place under the finger") {
   Rig r(false, 10);
   const auto grabbed = r.t.unproject(300, 400);
