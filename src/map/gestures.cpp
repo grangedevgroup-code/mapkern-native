@@ -246,7 +246,10 @@ void Gestures::moveTwoFinger() {
     if (std::abs(turn) > needed && std::abs(turn) * now.dist / 2 > kRotateArc) mode_.turnStart = turn;
   }
   if (mode_.turnStart) transform_.setBearing(mode_.bearing0 - (turn - *mode_.turnStart) * 180 / kPi);
-  if (mode_.anchor) mode_.zoom0 += transform_.setLocationAtPoint(World{(*mode_.anchor)[0], (*mode_.anchor)[1]}, now.midX, now.midY, (*mode_.anchor)[2], true);
+  if (mode_.anchor) {
+    mode_.zoom0 += transform_.setLocationAtPoint(World{(*mode_.anchor)[0], (*mode_.anchor)[1]}, now.midX, now.midY, (*mode_.anchor)[2], true);
+    follow(mode_.anchor, now.midX, now.midY);
+  }
   host_.changed();
 }
 
