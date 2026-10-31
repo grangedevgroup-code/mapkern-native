@@ -26,6 +26,10 @@ class DemSource : public Source {
   DemSource(std::string id, Value spec, SourceContext& ctx);
   ~DemSource() override;
   bool loaded() const override { return manager != nullptr; }
+  void setCacheBytes(size_t bytes) override {
+    Source::setCacheBytes(bytes);
+    if (manager) manager->options.cacheBytes = bytes;
+  }
   void load() override;
   void update(Transform& transform, double now, const std::vector<Transform*>& predicted) override;
   bool uploadPending(double deadline, double now) override;
