@@ -14,6 +14,7 @@
 #include "camera/transform.hpp"
 #include "core/async.hpp"
 #include "core/value.hpp"
+#include "diag/diagnostics.hpp"
 #include "map/gestures.hpp"
 #include "map/source.hpp"
 #include "mapkern/map.hpp"
