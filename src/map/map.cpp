@@ -529,18 +529,7 @@ void MapImpl::tick(double now) {
     if (t >= 1) motion.reset();
     dirty = true;
   }
-  if (inertia) {
-    const double dt = std::clamp(now - inertiaTime, 0.0, 50.0);
-    inertiaTime = now;
-    const double cx = transform.width / 2, cy = transform.height / 2;
-    const auto w = transform.unprojectClamped(cx - (*inertia)[0] * dt, cy - (*inertia)[1] * dt);
-    transform.setLocationAtPoint(w, cx, cy);
-    const double k = std::exp(-dt / 325.0);
-    (*inertia)[0] *= k;
-    (*inertia)[1] *= k;
-    if (std::hypot((*inertia)[0], (*inertia)[1]) < 0.01) inertia.reset();
-    dirty = true;
-  }
+  if (gestures.step(now)) dirty = true;
   for (auto& l : layers)
     if (l->settle(now)) dirty = true;
   updateTerrain();
