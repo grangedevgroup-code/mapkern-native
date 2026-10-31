@@ -21,6 +21,7 @@ data class MapOptions(
     val latitude: Double = 0.0,
     val zoom: Double = 0.0,
     val globe: Boolean = true,
+    val controls: Boolean = false,
 )
 
 data class Camera(val longitude: Double, val latitude: Double, val zoom: Double, val bearing: Double, val pitch: Double)
@@ -46,7 +47,7 @@ class MapView @JvmOverloads constructor(
         override fun onDoubleTap(e: MotionEvent): Boolean {
             val x = e.x / density
             val y = e.y / density
-            queueEvent { if (handle != 0L) nativeZoomBy(handle, 1.0, x, y) }
+            queueEvent { if (handle != 0L) nativeDoubleTap(handle, x, y) }
             return true
         }
     })
@@ -57,7 +58,7 @@ class MapView @JvmOverloads constructor(
         setEGLConfigChooser(8, 8, 8, 8, 24, 8)
         preserveEGLContextOnPause = true
         val cache = File(context.cacheDir, "mapkern").absolutePath
-        handle = nativeCreate(options.style, cache, options.longitude, options.latitude, options.zoom, options.globe, density)
+        handle = nativeCreate(options.style, cache, options.longitude, options.latitude, options.zoom, options.globe, density, options.controls)
         setRenderer(object : Renderer {
             override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
                 if (handle != 0L) nativeSurfaceCreated(handle)
@@ -147,13 +148,14 @@ class MapView @JvmOverloads constructor(
         if (h != 0L) queueEvent { nativeDestroy(h) }
     }
 
-    private external fun nativeCreate(style: String, cache: String, lng: Double, lat: Double, zoom: Double, globe: Boolean, ratio: Double): Long
+    private external fun nativeCreate(style: String, cache: String, lng: Double, lat: Double, zoom: Double, globe: Boolean, ratio: Double, controls: Boolean): Long
     private external fun nativeDestroy(handle: Long)
     private external fun nativeSurfaceCreated(handle: Long)
     private external fun nativeResize(handle: Long, width: Int, height: Int, ratio: Double)
     private external fun nativeRender(handle: Long, width: Int, height: Int): Boolean
     private external fun nativePointer(handle: Long, action: Int, id: Int, x: Double, y: Double)
     private external fun nativeZoomBy(handle: Long, delta: Double, x: Double, y: Double)
+    private external fun nativeDoubleTap(handle: Long, x: Double, y: Double)
     private external fun nativeSetStyle(handle: Long, style: String)
     private external fun nativeFlyTo(handle: Long, lng: Double, lat: Double, zoom: Double, bearing: Double, pitch: Double)
     private external fun nativeSetProjection(handle: Long, globe: Boolean)
