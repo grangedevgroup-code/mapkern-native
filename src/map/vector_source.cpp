@@ -231,7 +231,7 @@ void VectorSource::update(Transform& transform, double now, const std::vector<Tr
   if (manager) manager->update(transform, now, predicted);
 }
 
-bool VectorSource::uploadPending(double deadline, double now) { return manager ? manager->uploadPending(deadline, now) : false; }
+bool VectorSource::uploadPending(UploadBudget& budget, double now) { return manager ? manager->uploadPending(budget, now) : false; }
 
 bool VectorSource::isIdle() const { return !manager || manager->isLoaded(); }
 
