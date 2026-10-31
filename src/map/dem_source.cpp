@@ -35,7 +35,10 @@ std::optional<DemGrid> decodeBytes(const Bytes& bytes, const Unpack& unpack, std
     error = "Elevation tiles must be square, this one is " + std::to_string(image->width) + "x" + std::to_string(image->height);
     return std::nullopt;
   }
-  return decodeDem(image->rgba.data(), image->width, unpack, false);
+  const double started = diag::steadyMs();
+  auto grid = decodeDem(image->rgba.data(), image->width, unpack, false);
+  diag::stage(diag::Stage::Dem, diag::steadyMs() - started, bytes.size());
+  return grid;
 }
 
 class DemTileLoader : public TileLoader<DemTileData> {
