@@ -127,7 +127,7 @@ void markServer(const std::string& url, bool ok, double now) {
 
 DiskCache::DiskCache(std::string directory, uint64_t maxBytes) : dir_(std::move(directory)), maxBytes_(maxBytes) {
   std::error_code ec;
-  fs::create_directories(fs::u8path(dir_), ec);
+  fs::create_directories(fsPath(dir_), ec);
   if (ec) {
     broken_ = true;
     loaded_ = true;
@@ -158,7 +158,7 @@ void DiskCache::load() {
   std::unordered_map<std::string, Row> found;
   uint64_t total = 0;
   std::error_code ec;
-  for (auto it = fs::recursive_directory_iterator(fs::u8path(dir_), ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+  for (auto it = fs::recursive_directory_iterator(fsPath(dir_), ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
     {
       std::lock_guard lock(mutex_);
       if (stop_) return;
@@ -281,7 +281,7 @@ void DiskCache::pin(const std::string& url, bool pinned) {
 bool DiskCache::writeEntry(const std::string& url, const Pending& p) {
   const std::string path = pathFor(url);
   std::error_code ec;
-  fs::create_directories(fs::u8path(path).parent_path(), ec);
+  fs::create_directories(fsPath(path).parent_path(), ec);
   std::string head(kMagic, 4);
   putU32(head, static_cast<uint32_t>(url.size()));
   char exp[8];
@@ -338,7 +338,7 @@ void DiskCache::writer() {
     }
     for (const auto& url : touched) {
       std::error_code ec;
-      fs::last_write_time(fs::u8path(pathFor(url)), fs::file_time_type::clock::now(), ec);
+      fs::last_write_time(fsPath(pathFor(url)), fs::file_time_type::clock::now(), ec);
     }
     std::lock_guard lock(mutex_);
     evictLocked();
@@ -361,7 +361,7 @@ void DiskCache::evictLocked() {
     total_ -= it->second.size;
     entries_.erase(it);
     std::error_code ec;
-    fs::remove(fs::u8path(pathFor(url)), ec);
+    fs::remove(fsPath(pathFor(url)), ec);
   }
 }
 
@@ -386,7 +386,7 @@ void DiskCache::clear(bool keepPinned) {
       continue;
     }
     std::error_code ec;
-    fs::remove(fs::u8path(pathFor(it->first)), ec);
+    fs::remove(fsPath(pathFor(it->first)), ec);
     total_ -= it->second.size;
     it = entries_.erase(it);
   }
