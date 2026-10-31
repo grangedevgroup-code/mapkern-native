@@ -14,16 +14,12 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double kFeetPerMeter = 3.28084;
 constexpr double kFeetPerMile = 5280;
 
-const char* const kLogo[] = {
-    "M230 127.5 229.2 117.8 227.6 108.1 224.8 98 220.9 88.4 216.4 79.7 211.1 71.4 205.3 64.2 198.5 57.1 191 50.8 182.5 44.9 174.4 40.4 165.4 36.5 156.7 33.6 147.1 31.5 137.4 30.3 127.5 30 117.8 30.8 108.1 32.4 98 35.2 88.4 39.1 79.7 43.6 71.4 49 64.2 54.7 57.1 61.5 50.8 69 44.9 77.5 40.4 85.6 36.5 94.6 33.6 103.3 31.5 112.9 30.3 122.6 30 132.4 30.8 142.2 32.4 151.9 35.2 161.9 39.1 171.6 42.4 178.2 46.5 185.1 68.2 215.5 230 129.5 230 128.2ZM166 124.7 165.8 128.2 165.2 131.5 164.4 134.7 163.3 137.8 162 140.6 160.1 143.8 158 146.7 155.5 149.5 152.7 152 149.8 154.1 146.6 156 143.4 157.4 140 158.6 136.8 159.3 132.9 159.9 129.6 160 125.8 159.8 122.5 159.2 119.3 158.4 116.2 157.3 113.4 156 110.2 154.1 107.3 152 104.5 149.5 102 146.7 99.9 143.8 98 140.6 96.6 137.4 95.4 134 94.7 130.8 94.1 126.9 94 123.6 94.2 119.8 94.8 116.5 95.6 113.3 96.7 110.2 98 107.4 99.9 104.2 102 101.3 104.5 98.5 107.3 96 110.2 93.9 113.4 92 116.6 90.6 120 89.4 123.2 88.7 127.1 88.1 130.4 88 134.2 88.2 137.5 88.8 140.7 89.6 143.8 90.7 146.6 92 149.8 93.9 152.7 96 155.5 98.5 158 101.3 160.1 104.2 162 107.4 163.4 110.6 164.6 114 165.3 117.2 165.9 121.1 166 124.4ZM180.5 231.3 155.3 183.9 75.8 226.2 130 302ZM211.4 188.1 214.5 183.5 217.6 178.2 220.4 172.8 222.4 168.3 224.8 161.9 226.4 156.7 228 150.1 228.9 144.8 166.8 177.8 189 219.5Z",
-    "M301.6 218.2V113.8H334.5V121.5Q337.7 118.7 341.8 116.5Q351.1 111.6 362.7 111.6Q373.6 111.6 382.2 116.5Q388.7 120.2 393.2 125.8Q397.9 120.4 404.4 116.8Q414.3 111.6 426.5 111.6Q438.6 111.6 447.9 116.7Q457.3 121.7 462.8 131.1Q468.2 140.4 468.2 153.5V218.2H435.3V157.2Q435.3 149.2 430.5 144.8Q425.7 140.4 418.6 140.4Q413.6 140.4 409.8 142.5Q405.9 144.5 403.6 148.2Q401.4 151.8 401.4 157.2V218.2H368.5V157.2Q368.5 149.2 363.6 144.8Q358.8 140.4 351.7 140.4Q346.8 140.4 342.9 142.5Q339 144.5 336.8 148.2Q334.5 151.8 334.5 157.2V218.2ZM530 220.4Q515.6 220.4 504.3 213.3Q493 206.2 486.4 193.9Q479.9 181.7 479.9 166Q479.9 150.3 486.4 138Q493 125.8 504.3 118.7Q515.6 111.6 530 111.6Q540.5 111.6 549.1 115.7Q554.5 118.3 558.8 122.4V113.8H591V218.2H558.8V209.9Q554.5 213.7 549.1 216.3Q540.5 220.4 530 220.4ZM536.6 190.7Q547.2 190.7 553.6 183.7Q560.1 176.7 560.1 166Q560.1 158.7 557.2 153.1Q554.3 147.5 549 144.4Q543.7 141.3 536.8 141.3Q530 141.3 524.7 144.4Q519.4 147.5 516.3 153.1Q513.2 158.7 513.2 165.9Q513.2 173.1 516.2 178.7Q519.2 184.3 524.6 187.5Q530 190.7 536.6 190.7ZM671.4 220.4Q660.9 220.4 652.1 216.3Q647.4 214.2 643.7 211.1V262.3H611.2V113.8H644.1V121.1Q647.8 118.1 652.1 115.9Q660.9 111.6 671.4 111.6Q686.3 111.6 697.8 118.7Q709.3 125.8 715.8 138Q722.4 150.3 722.4 166Q722.4 181.7 715.8 193.9Q709.3 206.2 697.8 213.3Q686.3 220.4 671.4 220.4ZM665.4 190.7Q672.5 190.7 677.8 187.5Q683.1 184.3 686.1 178.7Q689.1 173.1 689.1 166Q689.1 158.7 686.1 153.1Q683.1 147.5 677.8 144.4Q672.5 141.3 665.6 141.3Q658.8 141.3 653.5 144.4Q648.2 147.5 645.2 153.1Q642.2 158.7 642.2 166Q642.2 173.1 645.1 178.7Q648 184.3 653.4 187.5Q658.8 190.7 665.4 190.7ZM803 218.2 769.1 167.9V218.2H736.2V62.2H769.1V160.4L802.8 113.8H839.6L801.3 163L841.7 218.2ZM902.2 220.6Q885.2 220.6 872 213.6Q858.7 206.6 851.2 194.2Q843.7 181.7 843.7 166Q843.7 150.3 851.1 137.9Q858.5 125.6 871.2 118.5Q883.9 111.4 899.8 111.4Q915.3 111.4 927.1 118.1Q938.9 124.7 945.7 136.5Q952.5 148.4 952.5 163.6Q952.5 166.4 952.2 169.5Q951.8 172.7 951 176.7L876.1 177Q876.8 179.5 877.9 181.7Q881.3 188.1 887.4 191.7Q893.6 195.2 901.9 195.2Q909.7 195.2 915.9 192.6Q922.2 189.9 926.9 184.5L944.9 202.5Q937.2 211.6 926.2 216.1Q915.3 220.6 902.2 220.6ZM876.1 154.4 921.7 154.2Q921.1 151.2 920 148.8Q917.4 142.8 912.4 139.7Q907.3 136.5 900 136.5Q892.3 136.5 886.6 140.1Q880.9 143.6 877.7 150.1Q876.8 152.2 876.1 154.4ZM965.4 218.2V113.8H998.3V121.7Q1008 111.6 1025.2 111.6Q1032.7 111.6 1038.4 113.9Q1044.1 116.1 1048.4 120.8L1028.8 145.6Q1026.7 143.2 1023.4 141.9Q1020.2 140.6 1016.1 140.6Q1008 140.6 1003.1 145.7Q998.3 150.7 998.3 160.8V218.2ZM1126.9 218.2V158.7Q1126.9 150.5 1121.8 145.5Q1116.8 140.4 1109 140.4Q1103.6 140.4 1099.6 142.7Q1095.5 144.9 1093.1 149.1Q1090.7 153.3 1090.7 158.7V218.2H1057.8V113.8H1090.7V121.9Q1094.2 118.9 1098.3 116.8Q1107.9 111.6 1120 111.6Q1131.6 111.6 1140.5 117.1Q1149.4 122.6 1154.6 131.6Q1159.8 140.6 1159.8 151.4V218.2Z"
-};
-
 const std::vector<std::string> kPlus{"M12 6v12", "M6 12h12"};
 const std::vector<std::string> kMinus{"M6 12h12"};
 const std::vector<std::string> kLayers{"M12 3l9 5-9 5-9-5z", "M3 12.5l9 5 9-5", "M3 17l9 5 9-5"};
 const std::vector<std::string> kGlobe{"M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 3c-3.2 3-3.2 15 0 18", "M12 3c3.2 3 3.2 15 0 18", "M3.5 9h17",
                                       "M3.5 15h17"};
+const std::vector<std::string> kInfo{"M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 11v6", "M12 7.6v0.2"};
 const std::string kNorth = "M12 3l4 9h-8z";
 const std::string kSouth = "M12 21l-4-9h8z";
 
@@ -70,14 +66,27 @@ std::string formatValue(double v) {
   return buf;
 }
 
-std::string ellipsize(const std::string& text, double px, double width) {
-  if (Canvas::measure(text, px, false) <= width) return text;
-  std::string cut = text;
-  while (!cut.empty() && Canvas::measure(cut + "\xE2\x80\xA6", px, false) > width) {
-    cut.pop_back();
-    while (!cut.empty() && (static_cast<unsigned char>(cut.back()) & 0xC0) == 0x80) cut.pop_back();
+std::vector<std::string> wrapText(const std::string& text, double px, double width) {
+  std::vector<std::string> lines;
+  std::string current;
+  size_t i = 0;
+  while (i <= text.size()) {
+    size_t j = text.find(' ', i);
+    if (j == std::string::npos) j = text.size();
+    const std::string word = text.substr(i, j - i);
+    if (!word.empty()) {
+      const std::string candidate = current.empty() ? word : current + " " + word;
+      if (!current.empty() && Canvas::measure(candidate, px, false) > width) {
+        lines.push_back(current);
+        current = word;
+      } else {
+        current = candidate;
+      }
+    }
+    i = j + 1;
   }
-  return cut + "\xE2\x80\xA6";
+  if (!current.empty()) lines.push_back(current);
+  return lines;
 }
 
 }
@@ -329,54 +338,37 @@ void Overlay::layout(const OverlayState& s) {
   }
 
   double left = H - m;
-  const double maxText = std::max(60.0, W - 2 * m - b - m);
   if (!s.attribution.empty()) {
-    const double px = 11, line = 18;
-    const std::string text = ellipsize(s.attribution, px, maxText - 16);
-    const double w = Canvas::measure(text, px, false) + 16, h = line + 4;
+    const double size = touch ? 32 : 26;
+    const double px = 11, line = 15;
+    const bool open = credits_;
+    std::vector<std::string> lines;
+    double textWidth = 0;
+    if (open) {
+      lines = wrapText(s.attribution, px, std::max(60.0, W - 3 * m - b - size - 18));
+      for (const auto& l : lines) textWidth = std::max(textWidth, Canvas::measure(l, px, false));
+    }
+    const double w = open ? size + 6 + textWidth + 12 : size;
+    const double h = open ? std::max(size, line * static_cast<double>(lines.size()) + 12) : size;
     Element e;
     e.id = "attribution";
     e.x = m;
     e.y = left - h;
     e.w = w;
     e.h = h;
-    e.pad = 1;
-    e.key = text;
+    e.pad = 2;
+    std::string key = open ? "credits" : "info";
+    for (const auto& l : lines) key += "|" + l;
+    e.key = key + "|" + std::to_string(touch);
     e.paint = [=](Canvas& c, double ox, double oy) {
-      c.roundRect(ox, oy, w, h, 6, rgba(255, 255, 255, 0.8));
-      c.text(ox + 8, oy + 2 + (line + Canvas::ascent(px, false) * 0.72) / 2, text, px, false, kInk);
+      c.roundRect(ox, oy, w, h, size / 2, rgba(255, 255, 255, open ? 0.92 : 0.82));
+      const double icon = size * 0.66;
+      strokeIcon(c, kInfo, iconBox(ox + (size - icon) / 2, oy + h - size + (size - icon) / 2, icon), 1.8 * icon / 24, kInk);
+      for (size_t i = 0; i < lines.size(); i++)
+        c.text(ox + size + 6, oy + 6 + line * static_cast<double>(i) + Canvas::ascent(px, false), lines[i], px, false, kInk);
     };
-    elements_.push_back(std::move(e));
-    left -= h + m;
-  }
-  {
-    const double w = 94, h = 26;
-    Element e;
-    e.id = "logo";
-    e.x = m;
-    e.y = left - h;
-    e.w = w;
-    e.h = h;
-    e.pad = 4;
-    e.key = "logo";
-    e.paint = [=](Canvas& c, double ox, double oy) {
-      const double k = std::min(w / 1192, h / 332);
-      const Affine a{k, 0, 0, k, ox + (w - 1192 * k) / 2, oy + (h - 332 * k) / 2};
-      Canvas layer(c.width(), c.height(), c.scale());
-      for (const char* d : kLogo) {
-        layer.stroke(shape(d), a, 44 * k, kWhite);
-        layer.fill(shape(d), a, kWhite);
-      }
-      for (const char* d : kLogo) layer.fill(shape(d), a, kInk);
-      const auto px = layer.pixels();
-      for (int y = 0; y < c.height(); y++)
-        for (int x = 0; x < c.width(); x++) {
-          const uint8_t* p = &px[(static_cast<size_t>(y) * c.width() + x) * 4];
-          if (p[3] == 0) continue;
-          const double alpha = p[3] / 255.0;
-          c.rect(x / c.scale(), y / c.scale(), 1 / c.scale(), 1 / c.scale(), {p[0] / 255.0 / alpha, p[1] / 255.0 / alpha, p[2] / 255.0 / alpha, alpha * 0.6});
-        }
-    };
+    e.hits.push_back({e.x, e.y, w, h, 0});
+    e.click = [this](size_t) { credits_ = !credits_; };
     elements_.push_back(std::move(e));
   }
   if (!s.hud.empty()) {
