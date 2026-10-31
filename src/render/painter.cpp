@@ -558,6 +558,10 @@ bool Painter::render(const FrameInput& frame, const FrameTarget& target) {
     drawGlobe(frame, slots, clear);
     for (const auto& layer : layers)
       if (layer->type == LayerType::Extrusion && layer->isVisible(zoom) && t.globeAmount() < 0.01) drawLayer(frame, *layer);
+  } else if (terrain) {
+    drawTerrain(frame, slots);
+    for (const auto& layer : layers)
+      if (!isDraped(layer->type) && layer->isVisible(zoom)) drawLayer(frame, *layer);
   } else {
     for (size_t i = start; i < layers.size(); i++) {
       const auto& layer = layers[i];
