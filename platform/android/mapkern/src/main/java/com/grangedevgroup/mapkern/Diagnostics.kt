@@ -410,8 +410,7 @@ class Diagnostics(context: Context, private val map: MapView, private val option
 
     private fun refreshRate(): Float {
         return try {
-            if (Build.VERSION.SDK_INT >= 30) app.display?.refreshRate ?: 0f
-            else @Suppress("DEPRECATION") (app.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.refreshRate
+            (app.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager).getDisplay(Display.DEFAULT_DISPLAY)?.refreshRate ?: 0f
         } catch (e: Exception) {
             0f
         }
