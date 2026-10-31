@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <limits>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -139,7 +140,7 @@ class Transform {
   double projectGlobe(double x, double y, double zPixels, double out[2]);
   std::array<double, 3> globeRay(double px, double py);
   World localToMercator(double lx, double ly, double lz) const;
-  std::optional<World> sphereHit(double px, double py, double height, bool clamp);
+  std::optional<World> sphereHit(double px, double py, double lift, bool clamp);
   std::optional<World> refineGlobe(World guess, double px, double py, double h);
   std::optional<World> unprojectGlobe(double px, double py, std::optional<double> groundZ, bool clamp);
   std::optional<World> flatUnproject(double px, double py, std::optional<double> groundZ);
