@@ -488,9 +488,9 @@ World Transform::localToMercator(double lx, double ly, double lz) const {
                           up * axisC_[2] + lx * axisE_[2] - ly * axisN_[2]);
 }
 
-std::optional<World> Transform::sphereHit(double px, double py, double height, bool clamp) {
+std::optional<World> Transform::sphereHit(double px, double py, double lift, bool clamp) {
   const auto dir = globeRay(px, py);
-  const double r = radius_ + height;
+  const double r = radius_ + lift;
   const double ox = globeCam_[0], oy = globeCam_[1], oz = globeCam_[2] + radius_;
   const double a = dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2];
   const double b = ox * dir[0] + oy * dir[1] + oz * dir[2];
