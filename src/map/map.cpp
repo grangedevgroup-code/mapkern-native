@@ -1018,6 +1018,12 @@ void Map::pointerDown(int id, double x, double y, double timeMs) { impl_->pointe
 void Map::pointerMove(int id, double x, double y, double timeMs) { impl_->pointerMove(id, x, y, timeMs < 0 ? nowMs() : timeMs); }
 void Map::pointerUp(int id, double x, double y, double timeMs) { impl_->pointerUp(id, x, y, timeMs < 0 ? nowMs() : timeMs, false); }
 void Map::pointerCancel(int id) { impl_->pointerUp(id, 0, 0, nowMs(), true); }
+std::string Map::diagnostics() { return impl_->diagnosticsJson(); }
+void Map::setHud(std::vector<std::string> lines) {
+  if (lines == impl_->hudLines) return;
+  impl_->hudLines = std::move(lines);
+  impl_->invalidate();
+}
 void Map::wheel(double d, double x, double y) { impl_->wheel(d, x, y); }
 void Map::doubleTap(double x, double y) {
   if (impl_->overlay && impl_->overlay->contains(x, y)) return;
