@@ -16,8 +16,11 @@ struct Image {
   bool premultiplied = false;
 };
 
+using MipChain = std::vector<std::vector<uint8_t>>;
+
 std::optional<Image> decodeImage(const Bytes& data, bool premultiply = true, std::string* error = nullptr);
 bool isWebp(const Bytes& data);
 void premultiplyAlpha(Image& image);
+MipChain mipChain(const uint8_t* rgba, int width, int height, int maxLevels);
 
 }
