@@ -5,7 +5,7 @@ using System.Windows.Forms;
 
 namespace Mapkern.WinForms;
 
-public class MapControl : Control
+public partial class MapControl : Control
 {
     private const int WmPointerDown = 0x0246;
     private const int WmPointerUpdate = 0x0245;
