@@ -8,6 +8,7 @@ set(MAPKERN_CORE_SOURCES
   src/formats/mvt.cpp
   src/formats/pmtiles.cpp
   src/formats/sqlite.cpp
+  src/geo/tessellate.cpp
   src/net/http.cpp
   src/style/color.cpp
   src/style/expression.cpp
@@ -17,6 +18,8 @@ set(MAPKERN_CORE_SOURCES
   src/tiles/cache.cpp
   src/tiles/fetch.cpp
   src/tiles/scheduler.cpp
+  src/worker/buckets.cpp
+  src/worker/vector_task.cpp
 )
 
 set(MAPKERN_RENDER_SOURCES
