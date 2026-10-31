@@ -180,3 +180,60 @@ TEST("net: real HTTPS request (MAPKERN_NET_TESTS=1)") {
   auto* c = std::get_if<FetchResult>(&second);
   EXPECT(r && c && c->fromCache && c->data && c->data->size() == r->data->size());
 }
+
+#include <fstream>
+#include <sstream>
+
+#include "style/import.hpp"
+#include "worker/vector_task.hpp"
+
+TEST("net: Liberty buckets from an OpenFreeMap tile (MAPKERN_NET_TESTS=1)") {
+  const char* on = std::getenv("MAPKERN_NET_TESTS");
+  std::ifstream in("../data/liberty.json", std::ios::binary);
+  if (!on || std::string(on) != "1" || !in) {
+    std::printf("    skipped\n");
+    return;
+  }
+  std::stringstream ss;
+  ss << in.rdbuf();
+  const auto style = importStyle(*parseJson(ss.str()), "https://tiles.openfreemap.org/styles/liberty");
+  std::vector<LayerProgram> programs;
+  for (const auto& l : style.style["layers"].asArray()) {
+    StyleLayer layer(l);
+    if (auto p = layerProgram(layer)) programs.push_back(std::move(*p));
+  }
+  std::atomic<int> done{0};
+  FetchOutcome tilejson;
+  fetchBytes({"https://tiles.openfreemap.org/planet", {}}, CancelToken(), 20000, ResourceKind::Source, nullptr, [&](FetchOutcome o) {
+    tilejson = std::move(o);
+    done = 1;
+  });
+  for (int i = 0; i < 400 && !done; i++) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  auto* tj = std::get_if<FetchResult>(&tilejson);
+  EXPECT(tj && tj->data);
+  if (!tj || !tj->data) return;
+  const auto json = parseJson(std::string_view(reinterpret_cast<const char*>(tj->data->data()), tj->data->size()));
+  EXPECT(json && (*json)["tiles"].isArray());
+  if (!json) return;
+  const std::string url = expandTemplate((*json)["tiles"][0].asString(), 14, 2624, 5722);
+  done = 0;
+  FetchOutcome tile;
+  fetchBytes({url, {}}, CancelToken(), 20000, ResourceKind::Tile, nullptr, [&](FetchOutcome o) {
+    tile = std::move(o);
+    done = 1;
+  });
+  for (int i = 0; i < 400 && !done; i++) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  auto* t = std::get_if<FetchResult>(&tile);
+  EXPECT(t && t->data);
+  if (!t || !t->data) return;
+  const auto result = buildVectorTile(*t->data, 14, 2624, 5722, programs, false, {});
+  size_t fills = 0, lines = 0, extrusions = 0;
+  for (const auto& b : result.buckets) {
+    fills += b.type == BucketType::Fill;
+    lines += b.type == BucketType::Line;
+    extrusions += b.type == BucketType::Extrusion;
+  }
+  std::printf("    Seattle z14: %zu buckets (%zu fill, %zu line, %zu extrusion), %zu features, %.1f ms\n", result.buckets.size(), fills,
+              lines, extrusions, result.featureCount, result.decodeMs);
+  EXPECT(fills > 3 && lines > 10);
+}
