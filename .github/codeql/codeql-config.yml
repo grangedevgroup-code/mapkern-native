@@ -10,3 +10,5 @@ query-filters:
       id: cpp/equality-on-floats
   - exclude:
       id: cpp/array-in-interface
+  - exclude:
+      id: cs/call-to-unmanaged-code
