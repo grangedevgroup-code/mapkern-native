@@ -2,4 +2,5 @@ file(GLOB MAPKERN_UNIT_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/unit/
 add_executable(mapkern_unit ${MAPKERN_UNIT_TESTS})
 target_link_libraries(mapkern_unit PRIVATE mapkern_core)
 target_include_directories(mapkern_unit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(mapkern_unit SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/third_party)
 add_test(NAME unit COMMAND mapkern_unit WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
