@@ -31,8 +31,9 @@ class FakeLoader : public TileLoader<FakeData> {
       else done(std::make_shared<FakeData>(FakeData{id}));
     });
   }
+  int uploads = 0;
   bool needsUpload(const FakeData&) const override { return true; }
-  void upload(FakeData&) override {}
+  void upload(FakeData&) override { uploads++; }
   size_t byteSize(const FakeData&) const override { return 1000; }
 };
 
@@ -48,7 +49,8 @@ void settle(TileManager<FakeData>& m, Mailbox& box, Transform& t) {
   for (int i = 0; i < 50; i++) {
     m.update(t, nowMs());
     box.drain();
-    m.uploadPending(nowMs() + 100, nowMs());
+    UploadBudget budget{nowMs() + 100};
+    m.uploadPending(budget, nowMs());
   }
 }
 
@@ -102,6 +104,29 @@ TEST("manager: empty tiles fall back to their parent") {
   EXPECT(s.blankPending == 0);
   EXPECT(!m.pieces.empty());
   for (const auto& p : m.pieces) EXPECT(p.tile->z <= 10);
+}
+
+TEST("manager: uploads share one frame budget") {
+  Mailbox box;
+  RequestScheduler scheduler;
+  auto loader = std::make_shared<FakeLoader>(&box);
+  TileManager<FakeData> m("test", Tiling{}, loader, scheduler, ManagerOptions{}, ManagerEvents{});
+  auto t = view(12.3);
+  for (int i = 0; i < 5; i++) {
+    m.update(t, nowMs());
+    box.drain();
+  }
+  EXPECT(loader->loads > 1);
+  UploadBudget spent{nowMs() - 1, true};
+  EXPECT(m.uploadPending(spent, nowMs()));
+  EXPECT(loader->uploads == 0);
+  UploadBudget late{nowMs() - 1, false};
+  EXPECT(m.uploadPending(late, nowMs()));
+  EXPECT(loader->uploads == 1);
+  EXPECT(late.used);
+  UploadBudget ample{nowMs() + 1000, false};
+  m.uploadPending(ample, nowMs());
+  EXPECT(loader->uploads == loader->loads);
 }
 
 TEST("cache: entries survive a restart and pinned ones survive eviction") {
