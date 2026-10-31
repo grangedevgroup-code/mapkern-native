@@ -84,7 +84,7 @@ std::optional<double> freshUntil(const HeaderLookup& headers, double now) {
     while ((pos = control.find(token, pos)) != std::string::npos) {
       const bool left = pos == 0 || control[pos - 1] == ',' || control[pos - 1] == ' ';
       const size_t end = pos + std::strlen(token);
-      const bool right = end >= control.size() || !std::isalnum(static_cast<unsigned char>(control[end])) && control[end] != '-';
+      const bool right = end >= control.size() || (!std::isalnum(static_cast<unsigned char>(control[end])) && control[end] != '-');
       if (left && right) return true;
       pos = end;
     }
