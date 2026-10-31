@@ -91,6 +91,10 @@ class MapView @JvmOverloads constructor(
 
     fun setGlobe(globe: Boolean) = queueEvent { if (handle != 0L) nativeSetProjection(handle, globe) }
 
+    fun setView(view: String) = queueEvent { if (handle != 0L) nativeSetView(handle, view) }
+
+    fun selectBasemap(index: Int) = queueEvent { if (handle != 0L) nativeSelectBasemap(handle, index) }
+
     fun setOffline(offline: Boolean) = queueEvent { if (handle != 0L) nativeSetOffline(handle, offline) }
 
     fun zoomBy(delta: Double) = queueEvent {
