@@ -537,8 +537,8 @@ bool Painter::render(const FrameInput& frame, const FrameTarget& target) {
     start = 1;
   }
   const bool terrain = frame.terrain && !globe;
+  ensureMeshes();
   if (globe || terrain) {
-    ensureMeshes();
     if (frame.terrain) {
       for (const auto& s : frame.terrain->slots) slots.push_back(s.cover);
     } else {
@@ -610,7 +610,26 @@ void Painter::drawLabels(const FrameInput& frame) {
     labelsAnimating_ = false;
     return;
   }
-  labelsAnimating_ = labels_.update(t, inputs, frame.now, cameraVersion_, frame.pixelRatio);
+  LabelTerrain ground;
+  const LabelTerrain* groundPtr = nullptr;
+  if (frame.terrain && t.globeAmount() <= 0) {
+    Terrain* terrain = frame.terrain;
+    const auto cam = t.cameraPosition();
+    const double ws = t.worldSize();
+    const std::array<double, 3> eye{cam[0] / ws, cam[1] / ws, cam[2] / ws};
+    ground.height = [terrain](double x, double y) { return terrain->heightAt(x, y); };
+    ground.hidden = [terrain, eye](double x, double y, double z) { return terrain->hidden(eye, x, y, z); };
+    groundPtr = &ground;
+    uint64_t sig = 0;
+    for (const auto& slot : terrain->slots)
+      if (slot.dem) sig = mix64(mix64(sig, slot.dem->key), slot.dem->revision);
+    sig = mixd(sig, terrain->exaggeration);
+    if (sig != terrainSignature_) {
+      terrainSignature_ = sig;
+      labels_.invalidatePlacement();
+    }
+  }
+  labelsAnimating_ = labels_.update(t, inputs, frame.now, cameraVersion_, frame.pixelRatio, groundPtr);
   stats_.drawCalls += labels_.draw(t, frame.pixelRatio, format_);
 }
 
@@ -1030,10 +1049,25 @@ void Painter::drawExtrusion(const FrameInput& frame, const StyleLayer& layer, Ve
   bind.vertex_buffers[0] = bucket.main->vertices.buffer;
   bind.index_buffer = bucket.main->indices.buffer;
   bindPaint(bind, bucket.paint);
+  mk_extrusion_dem_t dem{};
+  bind.views[VIEW_mk_dem_tex] = flatDem_.view;
+  bind.samplers[SMP_mk_dem_smp] = Gpu::get().sampler(false);
+  if (frame.terrain && frame.terrain->source && t.globeAmount() <= 0) {
+    auto [tile, rect] = frame.terrain->demFor(piece.tile->z, piece.tile->x, piece.tile->y);
+    if (tile && tile->data)
+      if (const GpuTexture* e = frame.terrain->source->elevationTexture(*tile->data); e && e->valid()) {
+        bind.views[VIEW_mk_dem_tex] = e->view;
+        const double n = std::exp2(piece.tile->z);
+        set4(dem.u_dem_rect, rect[0], rect[1], rect[2], rect[3]);
+        set4(dem.u_dem_info, tile->data->grid.size, 1, frame.terrain->exaggeration, bucket.extent);
+        set4(dem.u_rows, piece.tile->y / n, (piece.tile->y + 1) / n, t.worldSize());
+      }
+  }
   sg_apply_pipeline(pipeline(clipped(piece) ? Program::ExtrusionClip : Program::Extrusion, SG_PRIMITIVETYPE_TRIANGLES, StencilMode::Off,
                              DepthMode::TestWrite));
   sg_apply_bindings(&bind);
   sg_apply_uniforms(UB_mk_extrusion_params, SG_RANGE(p));
+  sg_apply_uniforms(UB_mk_extrusion_dem, SG_RANGE(dem));
   applyClip(piece, bucket.extent);
   sg_draw(0, static_cast<int>(bucket.main->indexCount), 1);
   stats_.drawCalls++;
