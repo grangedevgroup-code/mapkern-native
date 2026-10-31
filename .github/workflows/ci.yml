@@ -30,14 +30,16 @@ jobs:
           - name: macOS
             os: macos-15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install packages
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ninja-build libcurl4-openssl-dev libgl-dev libegl-dev libx11-dev libxi-dev libxcursor-dev xvfb mesa-utils
       - name: Install Ninja
         if: runner.os != 'Linux'
         run: pip install ninja
-      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
         if: runner.os == 'Windows'
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -51,18 +53,20 @@ jobs:
     name: Android
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: "25"
-      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       - name: Install CMake 4.4
         run: pip install cmake==4.4.4 ninja && cmake --version
       - name: Build AAR and demo APK
         working-directory: platform/android
         run: ./gradlew --no-daemon :mapkern:assembleRelease :demo:assembleRelease
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android
           path: |
@@ -73,13 +77,15 @@ jobs:
     name: .NET
     runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: "10.0.x"
       - name: Install Ninja
         run: pip install ninja
-      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
       - name: Build native library
         run: |
           cmake -S . -B build/windows -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DMAPKERN_TESTS=OFF -DMAPKERN_VIEWER=OFF
@@ -90,7 +96,7 @@ jobs:
         run: |
           dotnet pack platform/dotnet/Mapkern/Mapkern.csproj -c Release -p:Platform=AnyCPU -o out/nuget
           dotnet pack platform/dotnet/Mapkern.WinForms/Mapkern.WinForms.csproj -c Release -p:Platform=AnyCPU -o out/nuget
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dotnet
           path: out/nuget/*.nupkg
@@ -99,7 +105,9 @@ jobs:
     name: Apple SDK
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install Ninja
         run: brew install ninja
       - name: Build XCFramework
@@ -112,7 +120,7 @@ jobs:
         run: xcodebuild -scheme Mapkern -destination 'generic/platform=iOS' -quiet build
       - name: Archive XCFramework
         run: cd platform/apple && zip -qry Mapkern.xcframework.zip Mapkern.xcframework
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: apple
           path: platform/apple/Mapkern.xcframework.zip
