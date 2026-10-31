@@ -44,6 +44,7 @@ target_include_directories(mapkern_core PUBLIC include src PRIVATE third_party)
 find_package(Threads REQUIRED)
 target_link_libraries(mapkern_core PUBLIC Threads::Threads)
 include(cmake/Platform.cmake)
+include(cmake/Dependencies.cmake)
 
 if(MAPKERN_RENDER)
   add_library(mapkern STATIC ${MAPKERN_RENDER_SOURCES})
