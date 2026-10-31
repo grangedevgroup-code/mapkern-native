@@ -22,6 +22,7 @@ struct OverlayState {
   std::string view = "terrain";
   std::string attribution;
   double metersPerMaxWidth = 0;
+  std::vector<std::string> hud;
 };
 
 struct OverlayActions {
