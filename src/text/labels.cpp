@@ -499,7 +499,12 @@ std::shared_ptr<const Laid> LabelRenderer::computeLayout(const std::string& text
 
 bool LabelRenderer::update(Transform& transform, const std::vector<SymbolLayerInput>& inputs, double now, uint64_t cameraVersion, double pixelRatio,
                            const LabelTerrain* terrain) {
-  if ((terrain != nullptr) != (terrain_ != nullptr)) reflow_ = true;
+  if ((terrain != nullptr) != hadTerrain_) reflow_ = true;
+  hadTerrain_ = terrain != nullptr;
+  struct Scope {
+    const LabelTerrain*& slot;
+    ~Scope() { slot = nullptr; }
+  } scope{terrain_};
   terrain_ = terrain;
   std::string structure = "images:" + std::to_string(images.version);
   for (const auto& in : inputs) {
@@ -521,7 +526,7 @@ bool LabelRenderer::update(Transform& transform, const std::vector<SymbolLayerIn
   lastFrame_ = now;
   for (auto it = labels_.begin(); it != labels_.end();) {
     Label& l = it->second;
-    if (l.opacity != l.target) {
+    if (std::abs(l.opacity - l.target) > 1e-9) {
       const double step = dt / kFadeMs;
       l.opacity = l.target > l.opacity ? std::min(l.target, l.opacity + step) : std::max(l.target, l.opacity - step);
       animating = true;
