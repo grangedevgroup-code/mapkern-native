@@ -343,10 +343,17 @@ void MapImpl::addSource(const std::string& id, const Value& spec) {
   }
   Source* raw = s.get();
   sources[id] = std::move(s);
+  shareTileBudget();
   if (styleLoaded) {
     layersChanged();
     raw->load();
   }
+}
+
+void MapImpl::shareTileBudget() {
+  if (sources.empty()) return;
+  const size_t share = std::max<size_t>(options.tileCacheBytes / sources.size(), size_t{16} << 20);
+  for (auto& [id, s] : sources) s->setCacheBytes(share);
 }
 
 void MapImpl::removeSource(const std::string& id) {
