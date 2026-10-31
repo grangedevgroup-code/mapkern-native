@@ -81,9 +81,25 @@ std::string formatNumber(double v) {
     std::snprintf(buf, sizeof buf, "%.0f", v);
     return buf;
   }
-  char buf[32];
-  auto res = std::to_chars(buf, buf + sizeof buf, v);
-  return std::string(buf, res.ptr);
+  char buf[40];
+  for (int precision = 15; precision <= 17; precision++) {
+    std::snprintf(buf, sizeof buf, "%.*g", precision, v);
+    if (parseDouble(buf, buf + std::strlen(buf)) == v) break;
+  }
+  return buf;
+}
+
+double parseDouble(const char* begin, const char* end) {
+#if defined(__APPLE__)
+  static locale_t c = newlocale(LC_ALL_MASK, "C", nullptr);
+  std::string tmp(begin, end);
+  return strtod_l(tmp.c_str(), nullptr, c);
+#else
+  double d = 0;
+  auto res = std::from_chars(begin, end, d);
+  if (res.ec == std::errc::result_out_of_range) return *begin == '-' ? -HUGE_VAL : HUGE_VAL;
+  return d;
+#endif
 }
 
 static void escape(std::string& out, const std::string& s) {
