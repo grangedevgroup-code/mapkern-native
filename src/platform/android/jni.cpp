@@ -111,13 +111,96 @@ class JavaHttpClient : public mapkern::HttpClient {
   }
 };
 
+class GpuTimer {
+ public:
+  void reset() {
+    checked_ = false;
+    supported_ = false;
+    std::fill(std::begin(pending_), std::end(pending_), false);
+    active_ = false;
+  }
+
+  void begin() {
+    if (!checked_) {
+      checked_ = true;
+      const char* ext = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+      supported_ = ext && std::strstr(ext, "GL_EXT_disjoint_timer_query");
+      if (supported_) glGenQueries(kQueries, queries_);
+    }
+    if (!supported_) return;
+    collect();
+    if (pending_[next_]) return;
+    glBeginQuery(GL_TIME_ELAPSED_EXT, queries_[next_]);
+    active_ = true;
+  }
+
+  void end() {
+    if (!active_) return;
+    glEndQuery(GL_TIME_ELAPSED_EXT);
+    pending_[next_] = true;
+    next_ = (next_ + 1) % kQueries;
+    active_ = false;
+  }
+
+  std::string take() {
+    char out[160];
+    std::snprintf(out, sizeof out, "{\"timer\":%s,\"frames\":%llu,\"avgMs\":%.2f,\"maxMs\":%.2f,\"disjoint\":%llu}", supported_ ? "true" : "false",
+                  static_cast<unsigned long long>(count_), count_ ? sumMs_ / static_cast<double>(count_) : 0.0, maxMs_,
+                  static_cast<unsigned long long>(disjoint_));
+    count_ = 0;
+    sumMs_ = 0;
+    maxMs_ = 0;
+    disjoint_ = 0;
+    return out;
+  }
+
+ private:
+  static constexpr int kQueries = 4;
+
+  void collect() {
+    GLint disjoint = 0;
+    glGetIntegerv(GL_GPU_DISJOINT_EXT, &disjoint);
+    for (int i = 0; i < kQueries; i++) {
+      if (!pending_[i]) continue;
+      GLuint available = 0;
+      glGetQueryObjectuiv(queries_[i], GL_QUERY_RESULT_AVAILABLE, &available);
+      if (!available) continue;
+      GLuint ns = 0;
+      glGetQueryObjectuiv(queries_[i], GL_QUERY_RESULT, &ns);
+      pending_[i] = false;
+      if (disjoint) {
+        disjoint_++;
+        continue;
+      }
+      const double ms = static_cast<double>(ns) / 1e6;
+      sumMs_ += ms;
+      maxMs_ = std::max(maxMs_, ms);
+      count_++;
+    }
+  }
+
+  bool checked_ = false, supported_ = false, active_ = false;
+  GLuint queries_[kQueries] = {};
+  bool pending_[kQueries] = {};
+  int next_ = 0;
+  uint64_t count_ = 0, disjoint_ = 0;
+  double sumMs_ = 0, maxMs_ = 0;
+};
+
 struct Handle {
   std::unique_ptr<mapkern::Map> map;
   jobject view = nullptr;
   jmethodID requestRender = nullptr;
   jmethodID onEvent = nullptr;
   bool graphics = false;
+  GpuTimer gpu;
 };
+
+jbyteArray bytes(JNIEnv* env, const std::string& s) {
+  jbyteArray out = env->NewByteArray(static_cast<jsize>(s.size()));
+  env->SetByteArrayRegion(out, 0, static_cast<jsize>(s.size()), reinterpret_cast<const jbyte*>(s.data()));
+  return out;
+}
 
 Handle* handle(jlong ptr) { return reinterpret_cast<Handle*>(ptr); }
 
