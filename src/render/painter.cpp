@@ -727,7 +727,7 @@ void Painter::drawHillshade(const FrameInput& frame, const StyleLayer& layer, De
     b.vertex_buffers[0] = gpu.quad();
     b.views[VIEW_mk_gradient_tex] = gradient->view;
     b.samplers[SMP_mk_gradient_smp] = gpu.sampler(true);
-    b.views[VIEW_mk_mask_tex] = data->maskTexture.valid() ? data->maskTexture.view : gpu.blankTexture().view;
+    b.views[VIEW_mk_mask_tex] = data->maskTexture.valid() ? data->maskTexture.view : gpu.whiteTexture().view;
     b.samplers[SMP_mk_mask_smp] = gpu.sampler(true);
     sg_apply_bindings(&b);
     mk_raster_vs_params_t vs{};
