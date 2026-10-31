@@ -62,7 +62,7 @@ jobs:
       - name: Build AAR and demo APK
         working-directory: platform/android
         run: ./gradlew --no-daemon :mapkern:assembleRelease :demo:assembleRelease
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: android
           path: |
@@ -90,7 +90,7 @@ jobs:
         run: |
           dotnet pack platform/dotnet/Mapkern/Mapkern.csproj -c Release -p:Platform=AnyCPU -o out/nuget
           dotnet pack platform/dotnet/Mapkern.WinForms/Mapkern.WinForms.csproj -c Release -p:Platform=AnyCPU -o out/nuget
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: dotnet
           path: out/nuget/*.nupkg
@@ -112,7 +112,7 @@ jobs:
         run: xcodebuild -scheme Mapkern -destination 'generic/platform=iOS' -quiet build
       - name: Archive XCFramework
         run: cd platform/apple && zip -qry Mapkern.xcframework.zip Mapkern.xcframework
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: apple
           path: platform/apple/Mapkern.xcframework.zip
