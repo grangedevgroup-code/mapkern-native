@@ -64,6 +64,12 @@ void putU32(std::string& out, uint32_t v) {
 
 uint32_t getU32(const uint8_t* p) { return p[0] | (p[1] << 8) | (p[2] << 16) | (static_cast<uint32_t>(p[3]) << 24); }
 
+double fileTimeMs(fs::file_time_type t) {
+  using namespace std::chrono;
+  const auto sys = system_clock::now() + duration_cast<system_clock::duration>(t - fs::file_time_type::clock::now());
+  return static_cast<double>(duration_cast<milliseconds>(sys.time_since_epoch()).count());
+}
+
 }
 
 double wallMs() {
