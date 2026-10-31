@@ -120,7 +120,10 @@ class GpuTimer {
     active_ = false;
   }
 
+  bool enabled = false;
+
   void begin() {
+    if (!enabled) return;
     if (!checked_) {
       checked_ = true;
       const char* ext = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
