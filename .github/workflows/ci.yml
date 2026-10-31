@@ -37,7 +37,7 @@ jobs:
       - name: Install Ninja
         if: runner.os != 'Linux'
         run: pip install ninja
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
         if: runner.os == 'Windows'
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -79,7 +79,7 @@ jobs:
           dotnet-version: "10.0.x"
       - name: Install Ninja
         run: pip install ninja
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       - name: Build native library
         run: |
           cmake -S . -B build/windows -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DMAPKERN_TESTS=OFF -DMAPKERN_VIEWER=OFF
