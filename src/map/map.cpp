@@ -821,7 +821,7 @@ void Map::jumpTo(const CameraOptions& c) { impl_->jumpTo(c); }
 void Map::easeTo(const CameraOptions& c, const AnimationOptions& a) { impl_->easeTo(c, a); }
 void Map::flyTo(const CameraOptions& c, const AnimationOptions& a) { impl_->flyTo(c, a); }
 void Map::stop() { impl_->stop(); }
-bool Map::isMoving() const { return impl_->motion.has_value() || impl_->inertia.has_value() || !impl_->pointers.empty(); }
+bool Map::isMoving() const { return impl_->motion.has_value() || impl_->gestures.animating() || impl_->gestures.touching(); }
 double Map::zoom() const { return impl_->transform.zoom(); }
 double Map::bearing() const { return impl_->transform.bearing(); }
 double Map::pitch() const { return impl_->transform.pitch(); }
