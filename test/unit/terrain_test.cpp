@@ -65,12 +65,23 @@ TEST("dem backfill copies neighbour edges and gradients see them") {
   auto a = *decodeDem(left.data(), 4, unpackFor(Value()));
   auto b = *decodeDem(right.data(), 4, unpackFor(Value()));
   auto before = gradients(a);
-  EXPECT_NEAR(before[(2 * 6 + 5) * 2], 0, 1e-6);
+  EXPECT_NEAR(fromHalf(before[(2 * 6 + 5) * 2]), 0, 1e-6);
   EXPECT(backfill(a, b, 1, 0));
   EXPECT_NEAR(a.elevation[3 * a.stride + kDemBorder + 4], 800, 1e-3);
   auto after = gradients(a);
-  EXPECT(after[(2 * 6 + 5) * 2] > 100);
+  EXPECT(fromHalf(after[(2 * 6 + 5) * 2]) > 100);
   EXPECT(!backfill(a, b, 0, 0));
+}
+
+TEST("dem frame rewrite matches a full gradient pass after backfill") {
+  const auto left = terrarium(4, [](int x, int y) { return x * 30.0 + y * 7.0; });
+  const auto right = terrarium(4, [](int x, int y) { return 500.0 + x * 11.0 - y * 3.0; });
+  auto a = *decodeDem(left.data(), 4, unpackFor(Value()));
+  auto b = *decodeDem(right.data(), 4, unpackFor(Value()));
+  auto g = gradients(a);
+  EXPECT(backfill(a, b, 1, 0));
+  writeFrame(a, g);
+  EXPECT(g == gradients(a));
 }
 
 TEST("dem spike repair replaces outliers") {
@@ -87,4 +98,13 @@ TEST("half floats round trip common values") {
   EXPECT(h[2] == 0xc100);
   EXPECT(h[3] == 0x63d0);
   EXPECT(h[4] == 0x7bff);
+}
+
+TEST("half floats decode back to the value they were made from") {
+  const std::vector<float> values{0.0f, 1.0f, -2.5f, 1000.0f, 65504.0f, 0.000061035156f, 0.0000000596046f, -0.333251953f};
+  const auto h = toHalf(values);
+  for (size_t i = 0; i < values.size(); i++) EXPECT_NEAR(fromHalf(h[i]), values[i], std::abs(values[i]) * 1e-3 + 1e-9);
+  EXPECT(std::isinf(fromHalf(0x7c00)));
+  EXPECT(std::isnan(fromHalf(0x7e00)));
+  EXPECT(std::signbit(fromHalf(0x8000)));
 }
