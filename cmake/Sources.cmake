@@ -2,6 +2,11 @@ set(MAPKERN_CORE_SOURCES
   src/camera/transform.cpp
   src/core/url.cpp
   src/core/value.cpp
+  src/formats/bytes.cpp
+  src/formats/inflate.cpp
+  src/formats/mvt.cpp
+  src/formats/pmtiles.cpp
+  src/formats/sqlite.cpp
   src/style/color.cpp
   src/style/expression.cpp
   src/style/import.cpp
