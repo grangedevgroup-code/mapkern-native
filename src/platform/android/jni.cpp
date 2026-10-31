@@ -316,6 +316,14 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_com_grangedevgroup_mapkern_MapView_
   return bytes(env, out);
 }
 
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetView(JNIEnv* env, jobject, jlong ptr, jstring view) {
+  handle(ptr)->map->setView(str(env, view));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSelectBasemap(JNIEnv*, jobject, jlong ptr, jint index) {
+  if (index >= 0) handle(ptr)->map->selectBasemap(static_cast<size_t>(index));
+}
+
 extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetGpuTiming(JNIEnv*, jobject, jlong ptr, jboolean enabled) {
   handle(ptr)->gpu.enabled = enabled;
 }
