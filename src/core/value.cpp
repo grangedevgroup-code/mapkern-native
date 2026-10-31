@@ -197,6 +197,31 @@ Object withKey(Object object, std::string key, Value value) {
 
 namespace {
 
+bool validNumber(const char* p, const char* end) {
+  auto digit = [](char c) { return c >= '0' && c <= '9'; };
+  if (p < end && *p == '-') p++;
+  if (p >= end) return false;
+  if (*p == '0') {
+    p++;
+  } else if (digit(*p)) {
+    while (p < end && digit(*p)) p++;
+  } else {
+    return false;
+  }
+  if (p < end && *p == '.') {
+    p++;
+    if (p >= end || !digit(*p)) return false;
+    while (p < end && digit(*p)) p++;
+  }
+  if (p < end && (*p == 'e' || *p == 'E')) {
+    p++;
+    if (p < end && (*p == '+' || *p == '-')) p++;
+    if (p >= end || !digit(*p)) return false;
+    while (p < end && digit(*p)) p++;
+  }
+  return p == end;
+}
+
 struct Parser {
   const char* p;
   const char* end;
