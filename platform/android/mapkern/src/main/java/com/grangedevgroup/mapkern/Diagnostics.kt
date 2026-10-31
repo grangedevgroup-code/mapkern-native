@@ -77,7 +77,7 @@ class Diagnostics(context: Context, private val map: MapView, private val option
         override fun onLowMemory() = event("lowMemory", JSONObject())
     }
 
-    private val thermalListener = PowerManager.OnThermalStatusChangedListener { status -> event("thermal", JSONObject().put("status", status)) }
+    private var thermalListener: Any? = null
 
     private val tick = object : Runnable {
         override fun run() {
