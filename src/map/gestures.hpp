@@ -94,6 +94,7 @@ class Gestures {
   void moveTwoFinger();
   void detectDoubleTap(double t, double x, double y);
   void place(const Point3& anchor, double x, double y, bool keepSize);
+  void follow(std::optional<Point3>& anchor, double x, double y);
 
   Transform& transform_;
   GestureHost host_;
