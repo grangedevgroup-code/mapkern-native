@@ -146,7 +146,6 @@ class Transform {
   std::optional<World> flatUnproject(double px, double py, std::optional<double> groundZ);
   World flatUnprojectClamped(double px, double py, std::optional<double> groundZ);
   double rotateGlobeTo(World world, double px, double py, std::optional<double> z, bool keepSize);
-  std::array<double, 2> northUpAngles(double x, double y) const;
   std::vector<World> globeFootprint();
   double globeSpan() const;
   std::vector<CoveringTile> globeCovering(const CoverOptions& options);
