@@ -358,6 +358,7 @@ void MapImpl::shareTileBudget() {
 
 void MapImpl::removeSource(const std::string& id) {
   sources.erase(id);
+  shareTileBudget();
   invalidate();
 }
 
