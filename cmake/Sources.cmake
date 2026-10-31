@@ -3,6 +3,7 @@ set(MAPKERN_CORE_SOURCES
   src/core/async.cpp
   src/core/url.cpp
   src/core/value.cpp
+  src/diag/diagnostics.cpp
   src/formats/bytes.cpp
   src/formats/image.cpp
   src/formats/inflate.cpp
