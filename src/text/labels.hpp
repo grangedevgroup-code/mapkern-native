@@ -123,7 +123,7 @@ class LabelRenderer {
     double letterSpacing = 0, lineHeight = 1.2, maxWidth = 10;
     FontSpec font;
   };
-  void placement(Transform& transform, const std::vector<SymbolLayerInput>& inputs, double now);
+  void placement(Transform& transform, const std::vector<SymbolLayerInput>& inputs, double now, const LabelTerrain* surface);
   std::shared_ptr<const Laid> layout(const StyleLayer& layer, const std::string& text, bool line, int& budget, const TextShape& shape);
   std::shared_ptr<const Laid> computeLayout(const std::string& text, bool line, int& budget, const TextShape& shape);
   FontSpec font(const StyleLayer& layer, const EvalContext& ctx);
@@ -131,7 +131,6 @@ class LabelRenderer {
   void syncTextures();
 
   std::unordered_map<std::string, Label> labels_;
-  const LabelTerrain* terrain_ = nullptr;
   bool hadTerrain_ = false;
   std::unordered_map<std::string, std::shared_ptr<const Laid>> layoutCache_;
   uint64_t layoutGeneration_ = UINT64_MAX;
