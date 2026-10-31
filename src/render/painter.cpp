@@ -583,6 +583,7 @@ bool Painter::render(const FrameInput& frame, const FrameTarget& target) {
     }
   }
   drawLabels(frame);
+  if (frame.overlay) stats_.drawCalls += frame.overlay->draw(format_, t.width, t.height);
   sg_end_pass();
   sg_commit();
   stats_.cpuMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
