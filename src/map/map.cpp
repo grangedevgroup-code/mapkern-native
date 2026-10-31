@@ -106,6 +106,9 @@ void MapImpl::error(const std::string& code, const std::string& message, const s
   e.message = message;
   e.sourceId = sourceId;
   e.skipped = {code};
+  errorCount++;
+  recentErrors.emplace_back(nowMs(), code + ": " + message);
+  while (recentErrors.size() > 20) recentErrors.pop_front();
   emit(e);
 }
 
