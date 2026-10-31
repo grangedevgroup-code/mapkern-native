@@ -6,6 +6,7 @@
 #include <dxgi1_2.h>
 #include <windows.h>
 
+#include <algorithm>
 #include <mutex>
 
 namespace {
