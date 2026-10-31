@@ -30,6 +30,7 @@ import java.io.FileWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 
 data class DiagnosticsOptions(
