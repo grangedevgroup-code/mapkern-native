@@ -172,6 +172,8 @@ class MapView @JvmOverloads constructor(
     private external fun nativeGlInfo(): ByteArray
     private external fun nativeSetGpuTiming(handle: Long, enabled: Boolean)
     private external fun nativeSetHud(handle: Long, text: String)
+    private external fun nativeSetView(handle: Long, view: String)
+    private external fun nativeSelectBasemap(handle: Long, index: Int)
 
     companion object {
         @JvmStatic private external fun nativeSetReachable(reachable: Boolean)
