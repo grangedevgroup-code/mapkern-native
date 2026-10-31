@@ -768,8 +768,8 @@ std::string MapImpl::diagnosticsJson() {
              {"kbps", rate(netBytes * 8 / 1000)},
              {"latencyAvgMs", answered > 0 ? r2((t.latency.totalMs - p.latency.totalMs) / answered) : 0.0},
              {"latencyMaxMs", r2(t.latency.maxMs)},
-             {"queued", static_cast<double>(scheduler.queued())},
-             {"active", static_cast<double>(scheduler.active())}};
+             {"queued", static_cast<double>(scheduler.queuedCount())},
+             {"active", static_cast<double>(scheduler.activeCount())}};
   Object cache{{"hits", d(t.cacheHits, p.cacheHits)}, {"stale", d(t.cacheStale, p.cacheStale)}, {"bytes", d(t.bytesCache, p.bytesCache)},
                {"localReads", d(t.localReads, p.localReads)}, {"localBytes", d(t.bytesLocal, p.bytesLocal)}};
   if (diskCache) {
