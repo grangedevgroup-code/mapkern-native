@@ -11,7 +11,7 @@
 
 namespace mapkern {
 
-enum class Program { Solid, Fill, Line, Circle, Extrusion, Raster, Count };
+enum class Program { Solid, Fill, FillClip, Line, LineClip, Circle, CircleClip, Extrusion, ExtrusionClip, Raster, Count };
 
 enum class Blend { None, Premultiplied };
 enum class StencilMode { Off, Write, Equal, Mask };
@@ -23,8 +23,8 @@ struct PipelineKey {
   Blend blend = Blend::Premultiplied;
   StencilMode stencil = StencilMode::Off;
   DepthMode depth = DepthMode::Off;
-  sg_pixel_format color = SG_PIXELFORMAT_DEFAULT;
-  sg_pixel_format depthFormat = SG_PIXELFORMAT_DEFAULT;
+  sg_pixel_format color = _SG_PIXELFORMAT_DEFAULT;
+  sg_pixel_format depthFormat = _SG_PIXELFORMAT_DEFAULT;
   int samples = 0;
   bool colorWrite = true;
   bool cullBack = false;
@@ -35,8 +35,8 @@ struct PipelineKey {
 };
 
 struct PassFormat {
-  sg_pixel_format color = SG_PIXELFORMAT_DEFAULT;
-  sg_pixel_format depth = SG_PIXELFORMAT_DEFAULT;
+  sg_pixel_format color = _SG_PIXELFORMAT_DEFAULT;
+  sg_pixel_format depth = _SG_PIXELFORMAT_DEFAULT;
   int samples = 0;
 };
 
