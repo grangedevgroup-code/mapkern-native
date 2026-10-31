@@ -52,10 +52,12 @@ class MapImpl {
   void stop();
   CameraState targetState(const CameraOptions& camera);
 
-  void pointerDown(int id, double x, double y);
-  void pointerMove(int id, double x, double y);
-  void pointerUp(int id, double x, double y);
+  void pointerDown(int id, double x, double y, double time);
+  void pointerMove(int id, double x, double y, double time);
+  void pointerUp(int id, double x, double y, double time, bool cancelled);
   void wheel(double delta, double x, double y);
+  std::optional<Point3> pickWorld(double px, double py);
+  void easeZoom(double delta, double x, double y);
 
   void addSource(const std::string& id, const Value& spec);
   void loadSprite(const Value& sprite);
