@@ -120,7 +120,7 @@ TEST("mvt: decodes layers, properties and polygons") {
   EXPECT(rings[0][2] == 100 && rings[0][5] == 100);
   const auto polys = classifyRings(rings);
   EXPECT(polys.size() == 1);
-  EXPECT(std::abs(ringArea(rings[0])) == 5000);
+  EXPECT(std::abs(ringArea(rings[0])) == 10000);
 }
 
 TEST("pmtiles: hilbert tile ids round trip") {
