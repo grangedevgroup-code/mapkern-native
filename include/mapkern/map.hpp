@@ -146,6 +146,8 @@ class Map {
   void wheel(double delta, double x, double y);
   std::string diagnostics();
   void setHud(std::vector<std::string> lines);
+  void setView(const std::string& view);
+  void selectBasemap(size_t index);
   void doubleTap(double x, double y);
 
   std::optional<std::pair<double, double>> unproject(double x, double y) const;
