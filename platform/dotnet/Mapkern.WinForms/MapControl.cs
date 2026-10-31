@@ -129,14 +129,6 @@ public partial class MapControl : Control
         StartFrames();
     }
 
-    protected override void OnMouseDoubleClick(MouseEventArgs e)
-    {
-        base.OnMouseDoubleClick(e);
-        if (e.Button != MouseButtons.Left || view is null) return;
-        view.DoubleTap(e.X / Ratio, e.Y / Ratio);
-        StartFrames();
-    }
-
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
