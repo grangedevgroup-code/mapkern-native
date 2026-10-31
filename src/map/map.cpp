@@ -426,88 +426,63 @@ void MapImpl::flyTo(const CameraOptions& c, const AnimationOptions& a) {
 
 void MapImpl::stop() {
   motion.reset();
-  inertia.reset();
+  gestures.stopMomentum();
 }
 
-void MapImpl::pointerDown(int id, double x, double y) {
+std::optional<Point3> MapImpl::pickWorld(double px, double py) {
+  const double ws = transform.worldSize();
+  if (terrain && transform.globeAmount() <= 0) {
+    std::array<double, 3> origin, dir;
+    transform.screenRay(px, py, origin, dir);
+    const std::array<double, 3> o{origin[0] / ws, origin[1] / ws, origin[2] / ws};
+    const std::array<double, 3> d{dir[0] / ws, dir[1] / ws, dir[2] / ws};
+    if (auto hit = terrain->raycast(o, d, std::hypot(d[0], d[1], d[2]))) return *hit;
+  }
+  const auto w = transform.unproject(px, py);
+  if (!w) return std::nullopt;
+  return Point3{(*w)[0], (*w)[1], transform.centerElevationPixels() / ws};
+}
+
+void MapImpl::easeZoom(double delta, double x, double y) {
+  CameraOptions c;
+  c.zoom = std::round((transform.zoom() + delta) * 1000) / 1000;
+  c.aroundX = x;
+  c.aroundY = y;
+  AnimationOptions a;
+  a.duration = 300;
+  easeTo(c, a);
+}
+
+void MapImpl::pointerDown(int id, double x, double y, double time) {
   if (overlay && overlay->pointerDown(id, x, y)) {
     overlayPointers.insert(id);
     invalidate();
     return;
   }
+  gestures.down(id, x, y, time);
   invalidate();
-  stop();
-  pointers[id] = {x, y};
-  gesture.samples.clear();
-  if (pointers.size() == 1) {
-    if (auto w = transform.unproject(x, y)) gesture.anchor = *w;
-    else gesture.anchor = transform.unprojectClamped(x, y);
-    gesture.x = x;
-    gesture.y = y;
-  } else if (pointers.size() == 2) {
-    auto a = pointers.begin()->second, b = std::next(pointers.begin())->second;
-    gesture.x = (a.x + b.x) / 2;
-    gesture.y = (a.y + b.y) / 2;
-    gesture.distance = std::hypot(b.x - a.x, b.y - a.y);
-    gesture.angle = std::atan2(b.y - a.y, b.x - a.x);
-    gesture.zoom = transform.zoom();
-    gesture.bearing = transform.bearing();
-    gesture.anchor = transform.unprojectClamped(gesture.x, gesture.y);
-  }
 }
 
-void MapImpl::pointerMove(int id, double x, double y) {
+void MapImpl::pointerMove(int id, double x, double y, double time) {
   if (overlayPointers.contains(id)) return;
-  auto it = pointers.find(id);
-  if (it == pointers.end()) return;
-  it->second = {x, y};
-  if (pointers.size() == 1) {
-    transform.setLocationAtPoint(gesture.anchor, x, y);
-    gesture.samples.emplace_back(nowMs(), std::array<double, 2>{x, y});
-    while (gesture.samples.size() > 8) gesture.samples.pop_front();
-  } else if (pointers.size() >= 2) {
-    auto a = pointers.begin()->second, b = std::next(pointers.begin())->second;
-    const double cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
-    const double distance = std::hypot(b.x - a.x, b.y - a.y);
-    const double angle = std::atan2(b.y - a.y, b.x - a.x);
-    if (gesture.distance > 0) transform.setZoom(gesture.zoom + std::log2(distance / gesture.distance));
-    transform.setBearing(gesture.bearing - (angle - gesture.angle) * 180 / kPi);
-    transform.setLocationAtPoint(gesture.anchor, cx, cy);
-  }
-  invalidate();
+  gestures.move(id, x, y, time);
 }
 
-void MapImpl::pointerUp(int id, double x, double y) {
+void MapImpl::pointerUp(int id, double x, double y, double time, bool cancelled) {
   if (overlayPointers.erase(id)) {
-    if (overlay) overlay->pointerUp(id, x, y);
+    if (overlay) {
+      if (cancelled) overlay->pointerCancel(id);
+      else overlay->pointerUp(id, x, y);
+    }
     invalidate();
     return;
   }
-  pointers.erase(id);
-  if (pointers.empty() && gesture.samples.size() >= 2) {
-    const auto& first = gesture.samples.front();
-    const auto& last = gesture.samples.back();
-    const double dt = last.first - first.first;
-    if (dt > 0 && nowMs() - last.first < 60) {
-      const double vx = (last.second[0] - first.second[0]) / dt;
-      const double vy = (last.second[1] - first.second[1]) / dt;
-      if (std::hypot(vx, vy) > 0.15) {
-        inertia = std::array<double, 2>{vx, vy};
-        inertiaTime = nowMs();
-      }
-    }
-  }
-  if (pointers.size() == 1) {
-    const auto p = pointers.begin()->second;
-    gesture.anchor = transform.unprojectClamped(p.x, p.y);
-    gesture.samples.clear();
-  }
+  gestures.up(id, x, y, time, cancelled);
   invalidate();
 }
 
 void MapImpl::wheel(double delta, double x, double y) {
-  stop();
-  transform.zoomAround(transform.zoom() + delta, x, y);
+  gestures.wheel(delta, x, y, nowMs());
   invalidate();
 }
 
