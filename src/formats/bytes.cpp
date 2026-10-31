@@ -86,14 +86,14 @@ bool writeFileAtomic(const std::string& path, const uint8_t* data, size_t size) 
   std::fclose(f);
   if (!ok) {
     std::error_code ec;
-    std::filesystem::remove(std::filesystem::u8path(tmp), ec);
+    std::filesystem::remove(fsPath(tmp), ec);
     return false;
   }
   std::error_code ec;
-  std::filesystem::rename(std::filesystem::u8path(tmp), std::filesystem::u8path(path), ec);
+  std::filesystem::rename(fsPath(tmp), fsPath(path), ec);
   if (ec) {
-    std::filesystem::remove(std::filesystem::u8path(path), ec);
-    std::filesystem::rename(std::filesystem::u8path(tmp), std::filesystem::u8path(path), ec);
+    std::filesystem::remove(fsPath(path), ec);
+    std::filesystem::rename(fsPath(tmp), fsPath(path), ec);
   }
   return !ec;
 }
