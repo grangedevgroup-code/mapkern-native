@@ -54,8 +54,9 @@ void clampBorder(std::vector<float>& e, int size, int stride) {
     }
   }
   for (int k = 0; k < kDemBorder; k++) {
-    std::memcpy(&e[k * stride], &e[first * stride], sizeof(float) * stride);
-    std::memcpy(&e[(last + 1 + k) * stride], &e[last * stride], sizeof(float) * stride);
+    const size_t row = static_cast<size_t>(stride);
+    std::memcpy(&e[k * row], &e[first * row], sizeof(float) * row);
+    std::memcpy(&e[(last + 1 + k) * row], &e[last * row], sizeof(float) * row);
   }
 }
 
