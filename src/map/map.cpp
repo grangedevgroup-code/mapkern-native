@@ -5,6 +5,7 @@
 #include "core/url.hpp"
 #include "geo/mercator.hpp"
 #include "map/map_impl.hpp"
+#include "map/dem_source.hpp"
 #include "map/raster_source.hpp"
 #include "map/tileset.hpp"
 #include "map/vector_source.hpp"
@@ -317,7 +318,7 @@ void MapImpl::addSource(const std::string& id, const Value& spec) {
   std::unique_ptr<Source> s;
   if (type == "vector") s = std::make_unique<VectorSource>(id, spec, sourceCtx);
   else if (type == "raster") s = std::make_unique<RasterSource>(id, spec, sourceCtx);
-  else if (type == "dem") s = std::make_unique<RasterSource>(id, spec, sourceCtx, "dem");
+  else if (type == "dem") s = std::make_unique<DemSource>(id, spec, sourceCtx);
   else {
     error("unsupported-source", "Source \"" + id + "\" has type " + type + ", which is not drawn yet", id);
     return;
@@ -549,6 +550,7 @@ void MapImpl::tick(double now) {
   }
   for (auto& l : layers)
     if (l->settle(now)) dirty = true;
+  updateTerrain();
   for (auto& [id, s] : sources) s->update(transform, now, {});
   const double deadline = nowMs() + 6;
   for (auto& [id, s] : sources)
@@ -598,10 +600,80 @@ bool MapImpl::renderTarget(const FrameTarget& target) {
   frame.pixelRatio = pixelRatio;
   frame.now = start;
   frame.clearColor = {0, 0, 0, 0};
+  frame.terrain = terrain.get();
   painter.render(frame, target);
   dirty = painter.drapesBehind() || painter.labelsAnimating();
   lastFrameMs = nowMs() - start;
   return true;
+}
+
+void MapImpl::setTerrain(const Value& spec) {
+  Object root = styleRoot.isObject() ? styleRoot.asObject() : Object{};
+  std::erase_if(root, [](const auto& kv) { return kv.first == "terrain"; });
+  if (spec.isObject() && spec["source"].isString()) root.emplace_back("terrain", spec);
+  styleRoot = Value(std::move(root));
+  invalidate();
+}
+
+std::optional<double> MapImpl::cameraFloor(Terrain& t) {
+  const double ws = transform.worldSize();
+  const auto camera = transform.cameraPosition();
+  const auto ground = t.elevationAt(camera[0] / ws, camera[1] / ws);
+  if (!ground) return std::nullopt;
+  const double ppm = transform.pixelsPerMeter();
+  const double above = (camera[2] - transform.centerElevationPixels()) / ppm;
+  return *ground + 50 * t.exaggeration + 2 / ppm - above;
+}
+
+double MapImpl::nearPeak(Terrain& t) {
+  const double ws = transform.worldSize();
+  const auto camera = transform.cameraPosition();
+  const double ground = transform.ground() * transform.pixelsPerMeter();
+  double peak = -std::numeric_limits<double>::infinity();
+  auto sample = [&](double x, double y) {
+    if (auto m = t.elevationAt(x, y); m && *m > peak) peak = *m;
+  };
+  const double cx = camera[0] / ws, cy = camera[1] / ws;
+  sample(cx, cy);
+  for (double px : {0.0, transform.width / 2, transform.width}) {
+    const World h = transform.unprojectClamped(px, transform.height, ground);
+    for (int i = 1; i <= 8; i++) {
+      const double f = i / 8.0;
+      sample(cx + (h[0] - cx) * f, cy + (h[1] - cy) * f);
+    }
+  }
+  return peak;
+}
+
+void MapImpl::updateTerrain() {
+  const Value& spec = styleRoot["terrain"];
+  DemSource* source = nullptr;
+  if (spec.isObject() && spec["source"].isString())
+    if (auto it = sources.find(spec["source"].asString()); it != sources.end()) source = dynamic_cast<DemSource*>(it->second.get());
+  if (!source || !source->manager) {
+    if (terrain) {
+      terrain.reset();
+      transform.setGround(0);
+      if (transform.elevation() != 0) transform.setElevation(0);
+      dirty = true;
+    }
+    return;
+  }
+  const double exaggeration = std::max(0.0, spec["exaggeration"].numberOr(1));
+  if (!terrain || terrain->source != source) terrain = std::make_unique<Terrain>(source, exaggeration);
+  terrain->exaggeration = exaggeration;
+  terrain->relief = std::clamp(spec["relief"].numberOr(0), 0.0, 1.0);
+  const World c = transform.centerWorld();
+  if (auto target = terrain->elevationAt(c[0], c[1])) {
+    const double before = transform.elevation();
+    const auto floor = cameraFloor(*terrain);
+    const double wanted = floor ? std::max(*target, *floor) : *target;
+    if (std::abs(wanted - transform.elevation()) > 1e-3) transform.setElevation(wanted);
+    if (transform.elevation() != before) dirty = true;
+  }
+  transform.setPeak(nearPeak(*terrain));
+  terrain->update(transform);
+  transform.setGround(std::min(terrain->ground(), transform.elevation()));
 }
 
 void MapImpl::downloadRegion(double west, double south, double east, double north, int minZoom, int maxZoom,
