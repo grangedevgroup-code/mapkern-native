@@ -75,6 +75,8 @@ struct PaintStats {
   int drapes = 0;
   int layers = 0;
   double cpuMs = 0;
+  double drapeMs = 0;
+  double labelMs = 0;
 };
 
 class Painter {
