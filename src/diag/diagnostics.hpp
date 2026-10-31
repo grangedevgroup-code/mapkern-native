@@ -5,7 +5,7 @@
 
 namespace mapkern::diag {
 
-enum class Stage { VectorTile, Image, Dem, Count };
+enum class Stage { VectorTile, Image, Dem, Texture, Buffer, Count };
 enum class NetResult { Ok, Empty, ClientError, ServerError, Timeout, Error, Cancelled, Count };
 
 inline constexpr int kKinds = 6;
