@@ -85,11 +85,11 @@ jobs:
           cmake -S . -B build/windows -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DMAPKERN_TESTS=OFF -DMAPKERN_VIEWER=OFF
           cmake --build build/windows --target mapkern_c
       - name: Build SDK and demo
-        run: dotnet build platform/dotnet/Mapkern.slnx -c Release
+        run: dotnet build platform/dotnet/Demo/Demo.csproj -c Release -p:Platform=AnyCPU
       - name: Pack
         run: |
-          dotnet pack platform/dotnet/Mapkern/Mapkern.csproj -c Release -o out/nuget
-          dotnet pack platform/dotnet/Mapkern.WinForms/Mapkern.WinForms.csproj -c Release -o out/nuget
+          dotnet pack platform/dotnet/Mapkern/Mapkern.csproj -c Release -p:Platform=AnyCPU -o out/nuget
+          dotnet pack platform/dotnet/Mapkern.WinForms/Mapkern.WinForms.csproj -c Release -p:Platform=AnyCPU -o out/nuget
       - uses: actions/upload-artifact@v5
         with:
           name: dotnet
