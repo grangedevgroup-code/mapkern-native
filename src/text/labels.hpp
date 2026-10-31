@@ -132,6 +132,7 @@ class LabelRenderer {
 
   std::unordered_map<std::string, Label> labels_;
   const LabelTerrain* terrain_ = nullptr;
+  bool hadTerrain_ = false;
   std::unordered_map<std::string, std::shared_ptr<const Laid>> layoutCache_;
   uint64_t layoutGeneration_ = UINT64_MAX;
   std::unique_ptr<GlyphServer> server_;
