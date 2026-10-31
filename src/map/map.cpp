@@ -1019,6 +1019,13 @@ void Map::pointerMove(int id, double x, double y, double timeMs) { impl_->pointe
 void Map::pointerUp(int id, double x, double y, double timeMs) { impl_->pointerUp(id, x, y, timeMs < 0 ? nowMs() : timeMs, false); }
 void Map::pointerCancel(int id) { impl_->pointerUp(id, 0, 0, nowMs(), true); }
 std::string Map::diagnostics() { return impl_->diagnosticsJson(); }
+void Map::setView(const std::string& view) { impl_->setView(view); }
+void Map::selectBasemap(size_t index) {
+  auto& o = impl_->options;
+  if (index >= o.basemaps.size()) return;
+  if (impl_->overlay) impl_->overlay->selected = index;
+  impl_->setStyle(o.basemaps[index].second);
+}
 void Map::setHud(std::vector<std::string> lines) {
   if (lines == impl_->hudLines) return;
   impl_->hudLines = std::move(lines);
