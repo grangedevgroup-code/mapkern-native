@@ -1,0 +1,103 @@
+#pragma once
+
+#include <deque>
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "camera/animation.hpp"
+#include "camera/transform.hpp"
+#include "core/async.hpp"
+#include "core/value.hpp"
+#include "map/source.hpp"
+#include "mapkern/map.hpp"
+#include "render/painter.hpp"
+#include "render/paint_table.hpp"
+#include "style/layer.hpp"
+#include "tiles/cache.hpp"
+#include "tiles/scheduler.hpp"
+
+namespace mapkern {
+
+class MapImpl {
+ public:
+  explicit MapImpl(const MapOptions& options);
+  ~MapImpl();
+
+  void initGraphics(const GraphicsEnvironment& environment);
+  void shutdownGraphics();
+  bool render(const RenderSurface& surface);
+  bool needsRender() const;
+  void tick(double now);
+  void invalidate();
+
+  void resize(double width, double height, double pixelRatio);
+  void setStyle(const std::string& urlOrJson);
+  void applyStyle(const Value& style, const std::vector<std::string>& skipped);
+  Value styleJson() const;
+
+  void jumpTo(const CameraOptions& camera);
+  void easeTo(const CameraOptions& camera, const AnimationOptions& animation);
+  void flyTo(const CameraOptions& camera, const AnimationOptions& animation);
+  void stop();
+  CameraState targetState(const CameraOptions& camera);
+
+  void pointerDown(int id, double x, double y);
+  void pointerMove(int id, double x, double y);
+  void pointerUp(int id, double x, double y);
+  void wheel(double delta, double x, double y);
+
+  void addSource(const std::string& id, const Value& spec);
+  void removeSource(const std::string& id);
+  void addLayer(const Value& spec, const std::string& beforeId);
+  void removeLayer(const std::string& id);
+  StyleLayer* layer(const std::string& id);
+  void layersChanged();
+  void emit(const MapEvent& e);
+  void error(const std::string& code, const std::string& message, const std::string& sourceId = "");
+  std::string attribution() const;
+  MapStats stats() const;
+  void downloadRegion(double west, double south, double east, double north, int minZoom, int maxZoom,
+                      std::function<void(size_t, size_t)> progress);
+
+  MapOptions options;
+  Transform transform;
+  Mailbox mailbox;
+  RequestScheduler scheduler{24};
+  std::shared_ptr<DiskCache> diskCache;
+  SourceContext sourceCtx;
+  std::vector<std::unique_ptr<StyleLayer>> layers;
+  std::map<std::string, std::unique_ptr<Source>> sources;
+  Value styleRoot;
+  bool styleLoaded = false;
+  FeatureStates states;
+  Painter painter;
+  bool graphics = false;
+  bool dirty = true;
+  double pixelRatio = 1;
+  std::vector<std::function<void(const MapEvent&)>> listeners;
+  std::function<void()> invalidateCallback;
+  std::optional<CameraMotion> motion;
+  double motionStart = 0;
+  double wakeAt = 0;
+  double lastFrameMs = 0;
+  CancelToken styleRequest;
+
+  struct Pointer {
+    double x = 0, y = 0;
+  };
+  std::map<int, Pointer> pointers;
+  struct Gesture {
+    double x = 0, y = 0, distance = 0, angle = 0, zoom = 0, bearing = 0;
+    World anchor{0, 0};
+    std::deque<std::pair<double, std::array<double, 2>>> samples;
+  } gesture;
+  std::optional<std::array<double, 2>> inertia;
+  double inertiaTime = 0;
+};
+
+}
