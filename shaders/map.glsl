@@ -459,6 +459,134 @@ vec3 surface_point(vec2 rel, float meters, float pole, vec4 globe, vec4 center) 
 }
 @end
 
+@block dem_chunk
+float dem_elevation(vec2 uv, float size) {
+  vec2 p = uv * size + 1.5;
+  vec2 f = floor(p);
+  vec2 t = p - f;
+  ivec2 i = ivec2(f);
+  float a = texelFetch(sampler2D(dem_tex, dem_smp), i, 0).r;
+  float b = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(1, 0), 0).r;
+  float c = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(0, 1), 0).r;
+  float d = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(1, 1), 0).r;
+  return mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
+}
+@end
+
+@block relief_chunk
+vec3 relief(vec3 color, vec2 uv, vec4 sun, vec4 grad, vec4 rows, vec4 rect) {
+  if (sun.w <= 0.0 || rows.w < 0.5) return color;
+  vec2 dem = rect.xy + uv * rect.zw;
+  vec2 g = texture(sampler2D(gradient_tex, gradient_smp), dem * grad.x + grad.y).rg;
+  float y = mix(rows.x, rows.y, uv.y);
+  float k = cosh(3.14159265 * (1.0 - 2.0 * y));
+  vec3 n = normalize(vec3(-g * (grad.z * k * rows.z), 1.0));
+  float d = dot(n, sun.xyz) - sun.z;
+  return color * clamp(1.0 + d * sun.w, 0.45, 1.3);
+}
+@end
+
+@vs terrain_vs
+layout(binding=0) uniform terrain_vs_params {
+  mat4 u_matrix;
+  vec4 u_dem_rect;
+  vec4 u_dem_info;
+  vec4 u_rows;
+};
+layout(binding=2) uniform texture2D dem_tex;
+layout(binding=2) uniform sampler dem_smp;
+@image_sample_type dem_tex unfilterable_float
+@sampler_type dem_smp nonfiltering
+@include_block dem_chunk
+in ivec4 a_pos;
+out vec2 v_uv;
+void main() {
+  vec4 pos = vec4(a_pos);
+  vec2 uv = pos.xy / 64.0;
+  v_uv = uv;
+  float z = 0.0;
+  if (u_dem_info.y > 0.5) {
+    float y = mix(u_rows.x, u_rows.y, uv.y);
+    float ppm = u_rows.z * cosh(3.14159265 * (1.0 - 2.0 * y)) / 40075016.686;
+    z = dem_elevation(u_dem_rect.xy + uv * u_dem_rect.zw, u_dem_info.x) * u_dem_info.z * ppm;
+  }
+  z -= pos.z * u_dem_info.w;
+  gl_Position = u_matrix * vec4(uv, z, 1.0);
+}
+@end
+
+@fs terrain_fs
+layout(binding=1) uniform terrain_fs_params {
+  vec4 u_drape_rect;
+  vec4 u_sun;
+  vec4 u_grad;
+  vec4 u_rows2;
+  vec4 u_dem_rect2;
+};
+layout(binding=0) uniform texture2D drape_tex;
+layout(binding=0) uniform sampler drape_smp;
+layout(binding=3) uniform texture2D gradient_tex;
+layout(binding=3) uniform sampler gradient_smp;
+@include_block relief_chunk
+in vec2 v_uv;
+out vec4 frag_color;
+void main() {
+  vec2 uv = u_drape_rect.xy + v_uv * u_drape_rect.zw;
+  if (u_grad.w > 0.5) uv.y = 1.0 - uv.y;
+  vec4 color = texture(sampler2D(drape_tex, drape_smp), uv);
+  color.rgb = relief(color.rgb, v_uv, u_sun, u_grad, u_rows2, u_dem_rect2);
+  frag_color = color;
+}
+@end
+
+@program terrain terrain_vs terrain_fs
+
+@fs hillshade_fs
+layout(binding=1) uniform hillshade_params {
+  vec4 u_texel_rows;
+  vec4 u_light;
+  vec4 u_values;
+  vec4 u_values2;
+  vec4 u_shadow;
+  vec4 u_highlight;
+  vec4 u_accent;
+};
+layout(binding=3) uniform texture2D gradient_tex;
+layout(binding=3) uniform sampler gradient_smp;
+layout(binding=4) uniform texture2D mask_tex;
+layout(binding=4) uniform sampler mask_smp;
+in vec2 v_uv;
+out vec4 frag_color;
+void main() {
+  const float PI = 3.14159265;
+  vec2 g = texture(sampler2D(gradient_tex, gradient_smp), v_uv * u_texel_rows.x + u_texel_rows.y).rg;
+  float k = cosh(PI * (1.0 - 2.0 * mix(u_texel_rows.z, u_texel_rows.w, v_uv.y)));
+  float mask = texture(sampler2D(mask_tex, mask_smp), v_uv).r;
+  if (u_values.w > 0.5) {
+    vec2 deriv = clamp(g * u_values2.x, -4.0, 4.0) * k;
+    float slope = atan(0.625 * length(deriv));
+    float aspect = deriv.x != 0.0 ? atan(deriv.y, -deriv.x) : PI / 2.0 * (deriv.y > 0.0 ? 1.0 : -1.0);
+    float intensity = u_values2.z;
+    float base = 1.875 - intensity * 1.75;
+    float steep = intensity != 0.5 ? (pow(base, slope) - 1.0) / (pow(base, PI / 2.0) - 1.0) * (PI / 2.0) : slope;
+    float strength = clamp(intensity * 2.0, 0.0, 1.0);
+    float side = abs(mod((aspect + u_values2.y + PI) / PI + 0.5, 2.0) - 1.0);
+    vec4 lit = mix(u_shadow, u_highlight, side) * sin(steep) * strength;
+    vec4 edge = (1.0 - cos(steep)) * u_accent * strength;
+    frag_color = (edge * (1.0 - lit.a) + lit) * (mask * u_values.z);
+    return;
+  }
+  vec3 n = normalize(vec3(-g * (u_values.x * k), 1.0));
+  float d = dot(n, u_light.xyz) - u_light.w;
+  vec4 shade = d < 0.0 ? u_shadow * min(1.0, -d * u_values.y) : u_highlight * min(1.0, d * u_values.y);
+  vec4 accent = u_accent * min(1.0, (1.0 - n.z) * u_values.y);
+  vec4 color = shade + accent * (1.0 - shade.a);
+  frag_color = color * (mask * u_values.z);
+}
+@end
+
+@program hillshade raster_vs hillshade_fs
+
 @vs globe_vs
 layout(binding=0) uniform globe_vs_params {
   mat4 u_matrix;
@@ -472,29 +600,19 @@ layout(binding=0) uniform globe_vs_params {
 @include_block globe_chunk
 layout(binding=2) uniform texture2D dem_tex;
 layout(binding=2) uniform sampler dem_smp;
+@include_block dem_chunk
 in ivec4 a_pos;
 out vec2 v_uv;
 out float v_pole;
 out vec2 v_world;
 out vec3 v_local;
-float dem_elevation(vec2 uv) {
-  vec2 p = uv * u_dem_info.x + 1.5;
-  vec2 f = floor(p);
-  vec2 t = p - f;
-  ivec2 i = ivec2(f);
-  float a = texelFetch(sampler2D(dem_tex, dem_smp), i, 0).r;
-  float b = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(1, 0), 0).r;
-  float c = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(0, 1), 0).r;
-  float d = texelFetch(sampler2D(dem_tex, dem_smp), i + ivec2(1, 1), 0).r;
-  return mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
-}
 void main() {
   vec4 pos = vec4(a_pos);
   vec2 uv = pos.xy / 64.0;
   v_uv = uv;
   v_pole = pos.w;
   v_world = u_tile_world.xy + uv * u_tile_world.z;
-  float meters = u_dem_info.y > 0.5 ? dem_elevation(u_dem_rect.xy + uv * u_dem_rect.zw) * u_dem_info.z : 0.0;
+  float meters = u_dem_info.y > 0.5 ? dem_elevation(u_dem_rect.xy + uv * u_dem_rect.zw, u_dem_info.x) * u_dem_info.z : 0.0;
   meters -= pos.z * u_dem_info.w;
   float pole = pos.w > 0.5 ? (uv.y < 0.5 ? 1.0 : -1.0) : 0.0;
   v_local = surface_point(u_tile.xy + uv * u_tile.z, meters, pole, u_globe, u_center);
@@ -508,11 +626,18 @@ layout(binding=1) uniform globe_fs_params {
   vec4 u_base;
   vec4 u_atmo;
   vec4 u_misc;
+  vec4 u_sun;
+  vec4 u_grad;
+  vec4 u_rows2;
+  vec4 u_dem_rect2;
 };
 layout(binding=0) uniform texture2D drape_tex;
 layout(binding=0) uniform sampler drape_smp;
 layout(binding=1) uniform texture2D pole_tex;
 layout(binding=1) uniform sampler pole_smp;
+layout(binding=3) uniform texture2D gradient_tex;
+layout(binding=3) uniform sampler gradient_smp;
+@include_block relief_chunk
 in vec2 v_uv;
 in float v_pole;
 in vec2 v_world;
@@ -531,6 +656,7 @@ void main() {
     color = texture(sampler2D(drape_tex, drape_smp), uv);
   }
   color += u_base * (1.0 - color.a);
+  if (u_misc.x < 0.5) color.rgb = relief(color.rgb, v_uv, u_sun, u_grad, u_rows2, u_dem_rect2);
   if (u_atmo.w > 0.0) {
     vec3 normal = normalize(v_local + vec3(0.0, 0.0, u_misc.y));
     float facing = clamp(dot(normal, normalize(u_atmo.xyz - v_local)), 0.0, 1.0);
