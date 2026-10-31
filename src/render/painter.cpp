@@ -286,7 +286,16 @@ void Painter::renderDrapes(const FrameInput& frame, const std::vector<CoveringTi
     RenderView view;
     view.zoom = zoom;
     view.bearing = 0;
-    view.width = view.height = 512 * std::exp2(zoom - slot.z);
+    double scale = zoom;
+    if (const double g = t.globeAmount(); g > 0) {
+      const double north = std::atan(std::sinh(kPi * (1 - 2 * slot.y / n)));
+      const double south = std::atan(std::sinh(kPi * (1 - 2 * (slot.y + 1) / n)));
+      const double tileCos = south <= 0 && north >= 0 ? 1 : std::cos(std::min(std::abs(south), std::abs(north)));
+      const double centerCos = 1 / std::cosh(kPi * (1 - 2 * t.centerWorld()[1]));
+      scale = zoom + g * std::log2(tileCos / centerCos);
+      view.pixelZoom = scale;
+    }
+    view.width = view.height = 512 * std::exp2(scale - slot.z);
     const double x0 = slot.wrap + slot.x / n, y0 = slot.y / n, span = 1 / n;
     view.region = Rect{x0, y0, x0 + span, y0 + span};
     view.tileMatrix = [x0, y0, span](int z, int x, int y, int wrap, double extent) {
