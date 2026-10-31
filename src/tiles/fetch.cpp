@@ -60,8 +60,12 @@ void fetchNetwork(const RequestParameters& params, CancelToken cancel, int timeo
   request.url = params.url;
   request.headers = params.headers;
   request.timeoutMs = timeoutMs;
-  httpRequest(std::move(request), cancel, [url = params.url, timeoutMs, cache, done = std::move(done)](HttpResponse response) {
+  const double started = diag::steadyMs();
+  httpRequest(std::move(request), cancel, [url = params.url, timeoutMs, cache, started, done = std::move(done)](HttpResponse response) {
+    const double ms = diag::steadyMs() - started;
+    const uint64_t bytes = response.body.size();
     if (response.cancelled) {
+      diag::response(diag::NetResult::Cancelled, bytes, ms);
       TileFailure f;
       f.kind = FailureKind::Network;
       f.message = "cancelled";
@@ -70,6 +74,7 @@ void fetchNetwork(const RequestParameters& params, CancelToken cancel, int timeo
       return;
     }
     if (response.networkError) {
+      diag::response(response.timedOut ? diag::NetResult::Timeout : diag::NetResult::Error, bytes, ms);
       TileFailure f;
       f.kind = response.timedOut ? FailureKind::Timeout : FailureKind::Network;
       f.message = response.timedOut ? "Request timed out after " + std::to_string(timeoutMs) + " ms"
@@ -80,13 +85,16 @@ void fetchNetwork(const RequestParameters& params, CancelToken cancel, int timeo
     }
     const int status = response.status;
     if (status == 204 || status == 404 || status == 410) {
+      diag::response(diag::NetResult::Empty, bytes, ms);
       done(FetchResult{});
       return;
     }
     if (status < 200 || status >= 300) {
+      diag::response(status >= 500 ? diag::NetResult::ServerError : diag::NetResult::ClientError, bytes, ms);
       done(classifyStatus(status, response.header("retry-after")));
       return;
     }
+    diag::response(response.body.empty() ? diag::NetResult::Empty : diag::NetResult::Ok, bytes, ms);
     if (response.body.empty()) {
       done(FetchResult{});
       return;
