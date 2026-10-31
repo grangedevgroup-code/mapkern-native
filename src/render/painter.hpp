@@ -120,6 +120,7 @@ class Painter {
   LabelRenderer labels_;
   bool labelsAnimating_ = false;
   uint64_t cameraVersion_ = 0;
+  uint64_t terrainSignature_ = 0;
   std::array<double, 8> lastCamera_{};
   PassFormat format_;
   PaintStats stats_;
