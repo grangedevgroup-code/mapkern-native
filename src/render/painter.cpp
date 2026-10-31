@@ -886,7 +886,7 @@ void Painter::drawFill(const FrameInput& frame, const StyleLayer& layer, VectorB
   const Color color = layer.paintColor("color", ctx);
   const double opacity = layer.paintNumber("opacity", ctx);
   const auto translate = screenOffset(layer, t.bearing, zoom, "translate", "translateAnchor");
-  const double units = bucket.extent / (512 * std::exp2(zoom - piece.tile->z));
+  const double units = bucket.extent / (512 * std::exp2(t.scaleZoom() - piece.tile->z));
   mk_fill_params_t p{};
   copyMat(p.u_matrix, t.tileMatrix(piece.tile->z, piece.tile->x, piece.tile->y, piece.wrap, bucket.extent));
   const PaintSlot cs = bucket.paint.slot("color"), os = bucket.paint.slot("opacity");
@@ -933,7 +933,7 @@ void Painter::drawLine(const FrameInput& frame, const StyleLayer& layer, VectorB
   bucket.paint.update(layer, bucket.features, names, zoom, frame.states, frame.states ? frame.states->version() : 0);
   EvalContext ctx;
   ctx.zoom = zoom;
-  const double units = bucket.extent / (512 * std::exp2(zoom - piece.tile->z));
+  const double units = bucket.extent / (512 * std::exp2(t.scaleZoom() - piece.tile->z));
   mk_line_params_t p{};
   copyMat(p.u_matrix, t.tileMatrix(piece.tile->z, piece.tile->x, piece.tile->y, piece.wrap, bucket.extent));
   setColor(p.u_color, layer.paintColor("color", ctx));
@@ -993,7 +993,7 @@ void Painter::drawCircle(const FrameInput& frame, const StyleLayer& layer, Vecto
   bucket.paint.update(layer, bucket.features, names, zoom, frame.states, frame.states ? frame.states->version() : 0);
   EvalContext ctx;
   ctx.zoom = zoom;
-  const double units = bucket.extent / (512 * std::exp2(zoom - piece.tile->z));
+  const double units = bucket.extent / (512 * std::exp2(t.scaleZoom() - piece.tile->z));
   const auto translate = screenOffset(layer, t.bearing, zoom, "translate", "translateAnchor");
   mk_circle_params_t p{};
   copyMat(p.u_matrix, t.tileMatrix(piece.tile->z, piece.tile->x, piece.tile->y, piece.wrap, bucket.extent));
