@@ -1,5 +1,6 @@
 #include "formats/image.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <new>
@@ -99,6 +100,31 @@ std::optional<Image> decodeImage(const Bytes& data, bool premultiply, std::strin
   if (premultiply) premultiplyAlpha(image);
   diag::stage(diag::Stage::Image, diag::steadyMs() - started, data.size());
   return image;
+}
+
+MipChain mipChain(const uint8_t* rgba, int width, int height, int maxLevels) {
+  MipChain chain;
+  if (!rgba || width <= 0 || height <= 0) return chain;
+  const uint8_t* prev = rgba;
+  int w = width, h = height;
+  while ((w > 1 || h > 1) && static_cast<int>(chain.size()) + 1 < maxLevels) {
+    const int nw = w > 1 ? w / 2 : 1, nh = h > 1 ? h / 2 : 1;
+    std::vector<uint8_t> next(static_cast<size_t>(nw) * nh * 4);
+    uint8_t* out = next.data();
+    for (int y = 0; y < nh; y++) {
+      const uint8_t* top = prev + static_cast<size_t>(std::min(y * 2, h - 1)) * w * 4;
+      const uint8_t* bottom = prev + static_cast<size_t>(std::min(y * 2 + 1, h - 1)) * w * 4;
+      for (int x = 0; x < nw; x++, out += 4) {
+        const size_t x0 = static_cast<size_t>(std::min(x * 2, w - 1)) * 4, x1 = static_cast<size_t>(std::min(x * 2 + 1, w - 1)) * 4;
+        for (int c = 0; c < 4; c++) out[c] = static_cast<uint8_t>((top[x0 + c] + top[x1 + c] + bottom[x0 + c] + bottom[x1 + c] + 2) / 4);
+      }
+    }
+    chain.push_back(std::move(next));
+    prev = chain.back().data();
+    w = nw;
+    h = nh;
+  }
+  return chain;
 }
 
 }
