@@ -53,8 +53,9 @@ class Overlay {
   bool pointerMove(int id, double x, double y);
   bool pointerUp(int id, double x, double y);
   int draw(const PassFormat& format, double width, double height);
-  void resetGpu();
+  void resetGpu(bool release);
   bool menuOpen() const { return menu_; }
+  bool contains(double x, double y) const { return hit(x, y, nullptr) != nullptr; }
   void setPendingView(const std::string& view) { pending_ = view; }
 
  private:
@@ -64,7 +65,7 @@ class Overlay {
     double pad = 0;
     std::string key;
     std::function<void(Canvas&, double, double)> paint;
-    std::function<void()> click;
+    std::function<void(size_t)> click;
     std::vector<std::array<double, 5>> hits;
   };
   struct Cached {
