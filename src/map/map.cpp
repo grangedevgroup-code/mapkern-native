@@ -545,7 +545,7 @@ void MapImpl::tick(double now) {
 }
 
 bool MapImpl::needsRender() const {
-  if (dirty || motion || inertia || !pointers.empty()) return true;
+  if (dirty || motion || gestures.animating() || gestures.touching()) return true;
   for (const auto& [id, s] : sources)
     if (s->isFading() || !s->isIdle()) return true;
   for (const auto& l : layers)
