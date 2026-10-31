@@ -248,10 +248,12 @@ public final class MapView: MTKView, MTKViewDelegate {
             } else if let id = touchIds[key] {
                 if action == 1 {
                     mk_map_pointer_move(map, id, p.x, p.y)
-                } else {
+                } else if action == 2 {
                     mk_map_pointer_up(map, id, p.x, p.y)
                     touchIds[key] = nil
-                    if touch.tapCount == 2 { mk_map_double_tap(map, p.x, p.y) }
+                } else {
+                    mk_map_pointer_cancel(map, id)
+                    touchIds[key] = nil
                 }
             }
         }
