@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace mapkern {
@@ -67,7 +68,15 @@ struct MapOptions {
   int requestTimeoutMs = 30000;
   double fadeDuration = 200;
   bool offline = false;
+  bool controls = false;
+  bool touchControls = true;
+  std::vector<std::pair<std::string, std::string>> basemaps;
+  std::string terrainSource;
+  std::string view = "globe";
 };
+
+std::vector<std::pair<std::string, std::string>> defaultBasemaps();
+std::string defaultTerrainSource();
 
 struct MapEvent {
   std::string type;
