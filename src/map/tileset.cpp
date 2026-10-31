@@ -142,11 +142,6 @@ std::optional<Bytes> mbTile(MbTiles& m, int z, int x, int y) {
   return out;
 }
 
-std::pair<std::string, std::string> splitArchiveUrl(const std::string& url, const std::string& scheme) {
-  std::string rest = url.substr(scheme.size() + 3);
-  return {rest, ""};
-}
-
 bool parseZxyTail(std::string& location, int& z, int& x, int& y) {
   for (int k = 0; k < 3; k++) {
     const size_t slash = location.rfind('/');
