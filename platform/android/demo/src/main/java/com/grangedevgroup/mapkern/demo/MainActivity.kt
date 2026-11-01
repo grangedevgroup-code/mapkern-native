@@ -38,6 +38,7 @@ class MainActivity : Activity() {
         when (extras?.getString("bench")) {
             "gestures" -> map.post { Bench(map).gestures() }
             "globe" -> map.post { Bench(map).globe() }
+            "views" -> map.post { Bench(map).views() }
         }
     }
 
