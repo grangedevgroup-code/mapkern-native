@@ -141,10 +141,13 @@ class MapImpl {
     std::array<SlowFrame, 4> worst{};
     uint64_t cameraFlips = 0;
     double cameraStepMax = 0;
+    uint64_t bigTurns = 0;
+    double turnMax = 0;
   };
   FrameWindow frameWindow;
   double lastCameraZ = 0;
   double lastCameraStep = 0;
+  std::optional<std::array<double, 3>> lastCenter;
   double uploadMs = 0;
   size_t uploadTurn = 0;
   double lastFrameStart = 0;
