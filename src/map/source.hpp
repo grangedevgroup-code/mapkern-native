@@ -59,6 +59,9 @@ class Source {
   virtual bool adopt(const Value&) { return false; }
   virtual void retryFailed() {}
   virtual void setCacheBytes(size_t bytes) { cacheBytes_ = bytes; }
+  virtual size_t cachedBytes() const { return 0; }
+  virtual void evictionCandidates(std::vector<TileCandidate>&, size_t) const {}
+  virtual void dropTile(uint64_t) {}
 
  protected:
   ManagerEvents tileEvents();
