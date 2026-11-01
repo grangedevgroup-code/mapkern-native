@@ -459,7 +459,7 @@ std::optional<Point3> MapImpl::pickWorld(double px, double py) {
     const std::array<double, 3> d{dir[0] / ws, dir[1] / ws, dir[2] / ws};
     if (auto hit = terrain->raycast(o, d, std::hypot(d[0], d[1], d[2]))) return *hit;
   }
-  const auto w = transform.unproject(px, py);
+  const auto w = transform.unprojectExact(px, py);
   if (!w) return std::nullopt;
   return Point3{(*w)[0], (*w)[1], transform.centerElevationPixels() / ws};
 }
@@ -871,6 +871,12 @@ std::string MapImpl::diagnosticsJson() {
                 {"width", transform.width},
                 {"height", transform.height},
                 {"ratio", pixelRatio}};
+  const PanStats pan = gestures.takePanStats();
+  Object panning{{"moves", static_cast<double>(pan.moves)},
+                 {"wild", static_cast<double>(pan.wild)},
+                 {"maxSlipPx", r2(pan.maxSlipPx)},
+                 {"maxTurnDeg", r2(pan.maxTurnDeg)},
+                 {"maxTurnRatio", r2(pan.maxTurnRatio)}};
   Object state{{"styleLoaded", styleLoaded},
                {"offline", mapkern::offline()},
                {"reachable", networkReachable()},
@@ -885,7 +891,8 @@ std::string MapImpl::diagnosticsJson() {
   Object root{{"span", r2(span)},       {"frame", Value(std::move(frame))},   {"net", Value(std::move(net))},
               {"cache", Value(std::move(cache))}, {"decode", Value(std::move(decode))}, {"upload", Value(std::move(upload))},
               {"tiles", Value(std::move(tiles))},
-              {"tileMb", r2(tileBytes / 1048576)}, {"camera", Value(std::move(camera))}, {"state", Value(std::move(state))},
+              {"tileMb", r2(tileBytes / 1048576)}, {"camera", Value(std::move(camera))}, {"pan", Value(std::move(panning))},
+              {"state", Value(std::move(state))},
               {"errors", Value(std::move(errors))}};
   frameWindow = FrameWindow{};
   lastTotals = t;
