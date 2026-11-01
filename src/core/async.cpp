@@ -2,6 +2,15 @@
 
 #include <algorithm>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 namespace mapkern {
 
 void Mailbox::post(std::function<void()> fn) {
@@ -43,6 +52,24 @@ void Mailbox::setWake(std::function<void()> wake) {
 unsigned hardwareThreads() {
   const unsigned n = std::thread::hardware_concurrency();
   return n == 0 ? 4 : n;
+}
+
+uint64_t physicalMemory() {
+#ifdef _WIN32
+  MEMORYSTATUSEX status{};
+  status.dwLength = sizeof status;
+  return GlobalMemoryStatusEx(&status) ? status.ullTotalPhys : 0;
+#else
+  const long pages = sysconf(_SC_PHYS_PAGES);
+  const long size = sysconf(_SC_PAGE_SIZE);
+  return pages > 0 && size > 0 ? static_cast<uint64_t>(pages) * static_cast<uint64_t>(size) : 0;
+#endif
+}
+
+size_t autoTileCacheBytes() {
+  const uint64_t ram = physicalMemory();
+  const uint64_t lo = uint64_t{128} << 20, hi = uint64_t{768} << 20;
+  return static_cast<size_t>(ram == 0 ? uint64_t{256} << 20 : std::clamp(ram / 12, lo, hi));
 }
 
 ThreadPool::ThreadPool(unsigned threads, const char*) {
