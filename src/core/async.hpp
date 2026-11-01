@@ -59,5 +59,7 @@ class ThreadPool {
 
 ThreadPool& workerPool();
 unsigned hardwareThreads();
+uint64_t physicalMemory();
+size_t autoTileCacheBytes();
 
 }
