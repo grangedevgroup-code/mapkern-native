@@ -286,3 +286,34 @@ TEST("net: Liberty buckets from an OpenFreeMap tile (MAPKERN_NET_TESTS=1)") {
               lines, extrusions, result.featureCount, result.decodeMs);
   EXPECT(fills > 3 && lines > 10);
 }
+
+TEST("manager: eviction candidates are only tiles off screen, oldest first, and dropping one frees its bytes") {
+  Mailbox box;
+  RequestScheduler scheduler;
+  auto loader = std::make_shared<FakeLoader>(&box);
+  ManagerOptions options;
+  options.cacheBytes = size_t{1} << 30;
+  TileManager<FakeData> m("test", Tiling{}, loader, scheduler, options, ManagerEvents{});
+  auto t = view(12.3);
+  settle(m, box, t);
+  const size_t shown = m.cachedBytes();
+  std::vector<TileCandidate> none;
+  m.evictionCandidates(none, 3);
+  EXPECT(none.empty());
+  t.setCenter(-100, 40);
+  settle(m, box, t);
+  std::vector<TileCandidate> old;
+  m.evictionCandidates(old, 3);
+  EXPECT(!old.empty());
+  for (const auto& c : old) EXPECT(c.owner == 3 && c.bytes == 1000);
+  const size_t before = m.cachedBytes();
+  EXPECT(before > shown);
+  m.dropTile(old.front().key);
+  EXPECT(m.cachedBytes() == before - 1000);
+  EXPECT(m.stats().evicted == 1);
+  std::vector<TileCandidate> visible;
+  for (const auto& p : m.pieces) visible.push_back({0, p.tile->z, 0, p.tile->key, 0});
+  for (const auto& c : visible) m.dropTile(c.key);
+  EXPECT(m.stats().evicted == 1);
+  EXPECT(m.stats().blankPending == 0);
+}
