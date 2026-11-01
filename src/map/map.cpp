@@ -44,6 +44,7 @@ sg_swapchain toSwapchain(const RenderSurface& s) {
 }
 
 MapImpl::MapImpl(const MapOptions& o) : options(o) {
+  if (options.tileCacheBytes == 0) options.tileCacheBytes = autoTileCacheBytes();
   registerArchiveProtocols();
   installSymbolBuilder();
   pixelRatio = o.pixelRatio;
@@ -63,7 +64,7 @@ MapImpl::MapImpl(const MapOptions& o) : options(o) {
   sourceCtx.mailbox = &mailbox;
   sourceCtx.requestTimeoutMs = o.requestTimeoutMs;
   sourceCtx.diskCache = diskCache;
-  sourceCtx.cacheBytes = o.tileCacheBytes;
+  sourceCtx.cacheBytes = options.tileCacheBytes;
   sourceCtx.fadeDuration = o.fadeDuration;
   sourceCtx.pixelRatio = [this] { return pixelRatio; };
   sourceCtx.error = [this](const MapError& e) { error(e.code, e.message, e.sourceId); };
@@ -351,9 +352,28 @@ void MapImpl::addSource(const std::string& id, const Value& spec) {
 }
 
 void MapImpl::shareTileBudget() {
-  if (sources.empty()) return;
-  const size_t share = std::max<size_t>(options.tileCacheBytes / sources.size(), size_t{16} << 20);
-  for (auto& [id, s] : sources) s->setCacheBytes(share);
+  const size_t budget = std::max<size_t>(options.tileCacheBytes, size_t{16} << 20);
+  for (auto& [id, s] : sources) s->setCacheBytes(budget);
+}
+
+void MapImpl::trimTiles() {
+  const size_t budget = std::max<size_t>(options.tileCacheBytes, size_t{16} << 20);
+  std::vector<Source*> owners;
+  size_t total = 0;
+  for (auto& [id, s] : sources) {
+    owners.push_back(s.get());
+    total += s->cachedBytes();
+  }
+  if (total <= budget) return;
+  std::vector<TileCandidate> candidates;
+  for (size_t i = 0; i < owners.size(); i++) owners[i]->evictionCandidates(candidates, i);
+  std::sort(candidates.begin(), candidates.end(),
+            [](const TileCandidate& a, const TileCandidate& b) { return a.lastUsed != b.lastUsed ? a.lastUsed < b.lastUsed : a.z > b.z; });
+  for (const auto& c : candidates) {
+    if (total <= budget) break;
+    total -= std::min(total, c.bytes);
+    owners[c.owner]->dropTile(c.key);
+  }
 }
 
 void MapImpl::removeSource(const std::string& id) {
@@ -567,6 +587,7 @@ void MapImpl::tick(double now) {
     if (l->settle(now)) dirty = true;
   updateTerrain(progress);
   for (auto& [id, s] : sources) s->update(transform, now, {});
+  trimTiles();
   const double uploadStart = nowMs();
   UploadBudget budget{uploadStart + 6};
   std::vector<Source*> order;
