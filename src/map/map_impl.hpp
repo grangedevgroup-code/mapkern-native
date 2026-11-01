@@ -74,6 +74,7 @@ class MapImpl {
   std::string attribution() const;
   MapStats stats() const;
   void updateTerrain(std::optional<double> progress = std::nullopt);
+  void trimTiles();
   std::optional<double> aimElevation(Terrain& terrain);
   void aimMotion(const CameraState& to);
   void backOff(Terrain& terrain);
