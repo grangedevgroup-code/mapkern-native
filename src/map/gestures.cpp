@@ -44,6 +44,39 @@ void Gestures::follow(std::optional<Point3>& anchor, double x, double y) {
   if (auto under = host_.anchor(x, y)) anchor = under;
 }
 
+void Gestures::drag(std::optional<Point3>& anchor, double fromX, double fromY, double x, double y) {
+  const World before = transform_.centerWorld();
+  if (transform_.globeAmount() >= 1) {
+    transform_.panGlobe(x - fromX, y - fromY);
+    anchor.reset();
+    track(before, std::hypot(x - fromX, y - fromY), -1);
+    return;
+  }
+  if (!anchor) anchor = host_.anchor(fromX, fromY);
+  if (!anchor) return;
+  const Point3 grabbed = *anchor;
+  const double lift = grabbed[2] * transform_.worldSize();
+  const ScreenPoint from = transform_.project(grabbed[0], grabbed[1], lift);
+  place(grabbed, x, y, true);
+  const ScreenPoint at = transform_.project(grabbed[0], grabbed[1], grabbed[2] * transform_.worldSize());
+  track(before, std::hypot(x - from.x, y - from.y), at.w > 0 ? std::hypot(at.x - x, at.y - y) : -1);
+  follow(anchor, x, y);
+}
+
+void Gestures::track(const World& before, double moved, double slip) {
+  if (transform_.globeAmount() <= 0) return;
+  const World after = transform_.centerWorld();
+  const double turned = globeTurn(before[0], before[1], after[0], after[1]);
+  PanStats& s = panStats_;
+  s.moves++;
+  if (slip >= 0) s.maxSlipPx = std::max(s.maxSlipPx, slip);
+  s.maxTurnDeg = std::max(s.maxTurnDeg, turned * 180 / kPi);
+  if (moved <= 0) return;
+  const double ratio = turned / (moved / std::max(1.0, transform_.globeRadius()));
+  s.maxTurnRatio = std::max(s.maxTurnRatio, ratio);
+  if (ratio > 5 && turned > kPi / 180) s.wild++;
+}
+
 void Gestures::cancel() {
   mode_ = Mode{};
   pointers_.clear();
@@ -95,13 +128,22 @@ void Gestures::move(int id, double x, double y, double time) {
       mode_ = m;
     } else {
       if (!options.dragPan) return;
-      const auto anchor = host_.anchor(p.startX, p.startY);
-      if (!anchor) return;
       Mode m;
       m.kind = Kind::Pan;
       m.pointer = id;
-      m.anchor = anchor;
       m.fling = true;
+      m.x = p.startX;
+      m.y = p.startY;
+      m.anchor = host_.anchor(p.startX, p.startY);
+      if (!m.anchor && transform_.globeAmount() < 1) {
+        m.anchor = host_.anchor(x, y);
+        if (!m.anchor) return;
+        m.x = x;
+        m.y = y;
+        samples_ = {{time, x, y}};
+        mode_ = m;
+        return;
+      }
       mode_ = m;
     }
   }
@@ -112,8 +154,9 @@ void Gestures::move(int id, double x, double y, double time) {
     return;
   }
   if (mode_.kind == Kind::Pan && mode_.pointer == id) {
-    place(*mode_.anchor, x, y, true);
-    follow(mode_.anchor, x, y);
+    drag(mode_.anchor, mode_.x, mode_.y, x, y);
+    mode_.x = x;
+    mode_.y = y;
     samples_.push_back({time, x, y});
     while (samples_.size() > 2 && time - samples_.front().t > 100) samples_.erase(samples_.begin());
     host_.changed();
@@ -134,7 +177,7 @@ void Gestures::up(int id, double x, double y, double time, bool cancelled) {
   if (mode_.kind == Kind::Pan && mode_.pointer == id) {
     const Mode m = mode_;
     mode_ = Mode{};
-    if (!cancelled && m.fling) startInertia(*m.anchor, x, y, time);
+    if (!cancelled && m.fling) startInertia(m.anchor, x, y, time);
     return;
   }
   if (mode_.kind == Kind::Quick && mode_.pointer == id) {
@@ -152,18 +195,21 @@ void Gestures::up(int id, double x, double y, double time, bool cancelled) {
     mode_ = Mode{};
     if (!pointers_.empty() && options.dragPan) {
       const Pointer& rest = pointers_.begin()->second;
-      if (const auto anchor = host_.anchor(rest.x, rest.y)) {
+      const auto anchor = host_.anchor(rest.x, rest.y);
+      if (anchor || transform_.globeAmount() >= 1) {
         mode_.kind = Kind::Pan;
         mode_.pointer = rest.id;
         mode_.anchor = anchor;
         mode_.fling = false;
+        mode_.x = rest.x;
+        mode_.y = rest.y;
         samples_ = {{time, rest.x, rest.y}};
       }
     }
   }
 }
 
-void Gestures::startInertia(const Point3& anchor, double x, double y, double time) {
+void Gestures::startInertia(const std::optional<Point3>& anchor, double x, double y, double time) {
   if (samples_.empty()) return;
   const Sample first = samples_.front();
   samples_.clear();
@@ -290,14 +336,11 @@ void Gestures::wheel(double zoomDelta, double x, double y, double now) {
 bool Gestures::step(double now) {
   bool busy = false;
   if (inertia_) {
-    const Inertia i = *inertia_;
+    Inertia& i = *inertia_;
     const double t = std::min(1.0, (now - i.start) / i.duration);
     const double k = 1 - (1 - t) * (1 - t);
-    const double x = i.from[0] + i.offset[0] * k, y = i.from[1] + i.offset[1] * k;
-    place(i.anchor, x, y, true);
-    std::optional<Point3> anchor = i.anchor;
-    follow(anchor, x, y);
-    if (anchor) inertia_->anchor = *anchor;
+    drag(i.anchor, i.from[0] + i.offset[0] * i.done, i.from[1] + i.offset[1] * i.done, i.from[0] + i.offset[0] * k, i.from[1] + i.offset[1] * k);
+    i.done = k;
     host_.changed();
     if (t >= 1) inertia_.reset();
     else busy = true;
