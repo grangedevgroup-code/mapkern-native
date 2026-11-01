@@ -37,13 +37,19 @@ inline std::array<double, 3> unitFromMercator(double x, double y) {
   return {cosLat * std::cos(lng), cosLat * std::sin(lng), sinLat};
 }
 
-inline std::array<double, 2> mercatorFromUnit(double px, double py, double pz) {
+inline double globeTurn(double ax, double ay, double bx, double by) {
+  const double la = std::atan(std::sinh(kPi * (1 - 2 * ay))), lb = std::atan(std::sinh(kPi * (1 - 2 * by)));
+  const double s = std::sin((lb - la) / 2), t = std::sin((bx - ax) * kPi);
+  return 2 * std::asin(std::min(1.0, std::sqrt(s * s + std::cos(la) * std::cos(lb) * t * t)));
+}
+
+inline std::array<double, 2> mercatorFromUnit(double px, double py, double pz, bool keepPoles = false) {
   const double length = std::hypot(px, py, pz);
   const double sinLat = std::clamp(pz / length, -1.0, 1.0);
   const double lng = std::atan2(py, px);
   const double x = (lng + kPi) / (2 * kPi);
   const double y = (1 - std::atanh(std::clamp(sinLat, -0.9999999999999, 0.9999999999999)) / kPi) / 2;
-  return {x - std::floor(x), std::clamp(y, 0.0, 1.0)};
+  return {x - std::floor(x), keepPoles ? y : std::clamp(y, 0.0, 1.0)};
 }
 
 inline double nearestInBox(double lat0, double lat1, double lng0, double lng1, double latC, double lngC,
