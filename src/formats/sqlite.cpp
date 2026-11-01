@@ -1,15 +1,29 @@
 #include "formats/sqlite.hpp"
 
 #include <cstring>
+#include <unordered_set>
 
 namespace mapkern {
 
 namespace {
 
 constexpr size_t kCachePages = 512;
+constexpr uint64_t kMaxRecord = 64u << 20;
 
 uint32_t u32(const uint8_t* b) {
   return (static_cast<uint32_t>(b[0]) << 24) | (static_cast<uint32_t>(b[1]) << 16) | (static_cast<uint32_t>(b[2]) << 8) | b[3];
+}
+
+uint32_t u32At(const Bytes& page, size_t at) {
+  if (at + 4 > page.size()) throw FormatError("SQLite page pointer runs past the page");
+  return u32(page.data() + at);
+}
+
+size_t headerSize(const Bytes& page, size_t h) {
+  const uint8_t type = page[h];
+  const size_t size = type == 0x02 || type == 0x05 ? 12 : 8;
+  if (h + size > page.size()) throw FormatError("SQLite page header is truncated");
+  return size;
 }
 
 uint64_t varint(const uint8_t* bytes, size_t size, size_t at, size_t* next) {
@@ -31,8 +45,7 @@ uint64_t varint(const uint8_t* bytes, size_t size, size_t at, size_t* next) {
 std::vector<size_t> cellOffsets(const Bytes& page, size_t h) {
   if (h + 8 > page.size()) throw FormatError("SQLite page header is truncated");
   const size_t count = (page[h + 3] << 8) | page[h + 4];
-  const uint8_t type = page[h];
-  const size_t start = h + (type == 0x02 || type == 0x05 ? 12 : 8);
+  const size_t start = h + headerSize(page, h);
   if (start + count * 2 > page.size()) throw FormatError("SQLite cell pointers run past the page");
   std::vector<size_t> out(count);
   for (size_t i = 0; i < count; i++) out[i] = (page[start + i * 2] << 8) | page[start + i * 2 + 1];
@@ -97,8 +110,9 @@ void SqliteReader::open() {
     throw FormatError("The file is not an SQLite database");
   const uint32_t size = (header[16] << 8) | header[17];
   pageSize_ = size == 1 ? 65536 : size;
-  if (pageSize_ < 512) throw FormatError("SQLite page size is invalid");
+  if (pageSize_ < 512 || (pageSize_ & (pageSize_ - 1)) != 0) throw FormatError("SQLite page size is invalid");
   usable_ = pageSize_ - header[20];
+  if (usable_ < 480) throw FormatError("SQLite usable page size is invalid");
   encoding_ = u32(header.data() + 56);
   opened_ = true;
 }
@@ -161,15 +175,17 @@ std::vector<SchemaRow> SqliteReader::schema() {
 
 void SqliteReader::scan(uint32_t root, const std::function<void(int64_t, std::vector<SqlValue>&)>& visit) {
   open();
+  std::unordered_set<uint32_t> seen;
   std::function<void(uint32_t, int)> walk = [&](uint32_t n, int depth) {
     if (depth > 64) throw FormatError("The table is nested too deeply");
+    if (!seen.insert(n).second) throw FormatError("Page " + std::to_string(n) + " appears twice in one table");
     auto p = page(n);
     const size_t h = n == 1 ? 100 : 0;
     const uint8_t type = (*p)[h];
     const auto cells = cellOffsets(*p, h);
     if (type == 0x05) {
-      for (size_t c : cells) walk(u32(p->data() + c), depth + 1);
-      walk(u32(p->data() + h + 8), depth + 1);
+      for (size_t c : cells) walk(u32At(*p, c), depth + 1);
+      walk(u32At(*p, h + 8), depth + 1);
     } else if (type == 0x0d) {
       for (size_t c : cells) {
         int64_t rowid;
@@ -192,12 +208,12 @@ std::optional<std::vector<SqlValue>> SqliteReader::row(uint32_t root, int64_t ro
     const uint8_t type = (*p)[h];
     const auto cells = cellOffsets(*p, h);
     if (type == 0x05) {
-      uint32_t next = u32(p->data() + h + 8);
+      uint32_t next = u32At(*p, h + 8);
       for (size_t c : cells) {
         size_t after;
         const int64_t key = static_cast<int64_t>(varint(p->data(), p->size(), c + 4, &after));
         if (rowid <= key) {
-          next = u32(p->data() + c);
+          next = u32At(*p, c);
           break;
         }
       }
@@ -229,13 +245,13 @@ std::optional<std::vector<SqlValue>> SqliteReader::lookup(uint32_t root, const s
     const uint8_t type = (*p)[h];
     const auto cells = cellOffsets(*p, h);
     if (type == 0x02) {
-      uint32_t next = u32(p->data() + h + 8);
+      uint32_t next = u32At(*p, h + 8);
       for (size_t c : cells) {
         auto values = indexCell(*p, c + 4);
         const int order = compareKey(values, key);
         if (order == 0) return values;
         if (order > 0) {
-          next = u32(p->data() + c);
+          next = u32At(*p, c);
           break;
         }
       }
@@ -268,7 +284,7 @@ std::vector<SqlValue> SqliteReader::indexCell(const Bytes& page, size_t cell) {
 }
 
 Bytes SqliteReader::payload(const Bytes& page, size_t start, uint64_t size, uint64_t maxLocal) {
-  if (size > (1u << 30)) throw FormatError("SQLite record is too large");
+  if (size > kMaxRecord) throw FormatError("SQLite record is too large");
   if (size <= maxLocal) {
     if (start + size > page.size()) throw FormatError("SQLite record runs past the page");
     return Bytes(page.begin() + static_cast<ptrdiff_t>(start), page.begin() + static_cast<ptrdiff_t>(start + size));
@@ -302,6 +318,7 @@ Bytes SqliteReader::payload(const Bytes& page, size_t start, uint64_t size, uint
 std::vector<SqlValue> SqliteReader::record(const Bytes& payload) const {
   size_t first;
   const uint64_t headerSize = varint(payload.data(), payload.size(), 0, &first);
+  if (headerSize > payload.size()) throw FormatError("SQLite record header is longer than the record");
   std::vector<uint64_t> types;
   size_t p = first;
   while (p < headerSize && p < payload.size()) {
@@ -313,7 +330,7 @@ std::vector<SqlValue> SqliteReader::record(const Bytes& payload) const {
   values.reserve(types.size());
   size_t o = static_cast<size_t>(headerSize);
   auto need = [&](size_t n) {
-    if (o + n > payload.size()) throw FormatError("SQLite record is truncated");
+    if (n > payload.size() || o > payload.size() - n) throw FormatError("SQLite record is truncated");
   };
   auto be = [&](size_t n) {
     need(n);
