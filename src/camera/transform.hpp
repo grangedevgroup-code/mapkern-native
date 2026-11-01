@@ -120,10 +120,12 @@ class Transform {
   Point projectLngLat(double lng, double lat);
   void screenRay(double px, double py, std::array<double, 3>& origin, std::array<double, 3>& dir);
   std::optional<World> unproject(double px, double py, std::optional<double> groundZ = std::nullopt);
+  std::optional<World> unprojectExact(double px, double py, std::optional<double> groundZ = std::nullopt);
   World unprojectClamped(double px, double py, std::optional<double> groundZ = std::nullopt);
   std::optional<LngLat> unprojectLngLat(double px, double py);
   double setLocationAtPoint(World world, double px, double py, std::optional<double> z = std::nullopt,
                             bool keepSize = false);
+  double panGlobe(double dx, double dy);
   void zoomAround(double zoom, double px, double py, std::optional<double> z = std::nullopt);
   std::vector<World> footprint();
   double tileArea(int z, int x, int y, int wrap);
@@ -139,10 +141,10 @@ class Transform {
   void constrain();
   double projectGlobe(double x, double y, double zPixels, double out[2]);
   std::array<double, 3> globeRay(double px, double py);
-  World localToMercator(double lx, double ly, double lz) const;
-  std::optional<World> sphereHit(double px, double py, double lift, bool clamp);
+  World localToMercator(double lx, double ly, double lz, bool keepPoles = false) const;
+  std::optional<World> sphereHit(double px, double py, double lift, bool clamp, bool keepPoles = false);
   std::optional<World> refineGlobe(World guess, double px, double py, double h);
-  std::optional<World> unprojectGlobe(double px, double py, std::optional<double> groundZ, bool clamp);
+  std::optional<World> unprojectGlobe(double px, double py, std::optional<double> groundZ, bool clamp, bool keepPoles = false);
   std::optional<World> flatUnproject(double px, double py, std::optional<double> groundZ);
   World flatUnprojectClamped(double px, double py, std::optional<double> groundZ);
   double rotateGlobeTo(World world, double px, double py, std::optional<double> z, bool keepSize);
