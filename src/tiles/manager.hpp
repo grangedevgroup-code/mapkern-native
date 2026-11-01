@@ -57,6 +57,14 @@ struct ManagerOptions {
   int prefetchLimit = 64;
 };
 
+struct TileCandidate {
+  double lastUsed = 0;
+  int z = 0;
+  size_t bytes = 0;
+  uint64_t key = 0;
+  size_t owner = 0;
+};
+
 struct TileStats {
   size_t tiles = 0, ready = 0, loading = 0, failed = 0, empty = 0, refreshing = 0, bytes = 0;
   size_t visibleSlots = 0, pieces = 0, fallbackPieces = 0;
@@ -92,7 +100,7 @@ struct Tile {
   bool wanted = false;
   double unwantedSince = std::numeric_limits<double>::quiet_NaN();
   bool retained = false;
-  uint64_t lastUsed = 0;
+  double lastUsed = 0;
   double readyAt = -std::numeric_limits<double>::infinity();
   bool shown = false;
   double requestedAt = 0;
@@ -180,6 +188,26 @@ class TileManager {
     return s;
   }
 
+  size_t cachedBytes() const {
+    size_t bytes = 0;
+    for (const auto& [k, t] : tiles_) bytes += t->bytes;
+    return bytes;
+  }
+
+  void evictionCandidates(std::vector<TileCandidate>& out, size_t owner) const {
+    for (const auto& [k, t] : tiles_)
+      if (!t->retained && !t->wanted && !jobs_.contains(t->key)) out.push_back({t->lastUsed, t->z, t->bytes, t->key, owner});
+  }
+
+  void dropTile(uint64_t key) {
+    auto it = tiles_.find(key);
+    if (it == tiles_.end()) return;
+    auto t = it->second;
+    if (t->retained || t->wanted || jobs_.contains(t->key)) return;
+    drop(t);
+    counters_.evicted++;
+  }
+
   std::shared_ptr<Tile<D>> getTile(int z, int x, int y) const {
     auto it = tiles_.find(tileKey(z, x, y));
     return it == tiles_.end() ? nullptr : it->second;
@@ -192,7 +220,7 @@ class TileManager {
 
   void update(Transform& transform, double now, const std::vector<Transform*>& predicted = {}) {
     if (destroyed_) return;
-    frame_++;
+    now_ = now;
     for (auto& [k, t] : tiles_) {
       t->wanted = false;
       t->retained = false;
@@ -409,7 +437,7 @@ class TileManager {
     Tile<D>& t = *it->second;
     t.wanted = true;
     if (priority < t.priority) t.priority = priority;
-    t.lastUsed = frame_;
+    t.lastUsed = now_;
     return t;
   }
 
@@ -577,7 +605,7 @@ class TileManager {
 
   RenderPiece<D> piece(const std::shared_ptr<Tile<D>>& t, int wrap, Rect clip, double opacity, int slotZ) {
     t->retained = true;
-    t->lastUsed = frame_;
+    t->lastUsed = now_;
     return {t, wrap, clip, opacity, slotZ};
   }
 
@@ -868,7 +896,7 @@ class TileManager {
   std::unordered_map<uint64_t, std::shared_ptr<Tile<D>>> tiles_;
   std::unordered_map<uint64_t, std::shared_ptr<JobHandle>> jobs_;
   std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
-  uint64_t frame_ = 0;
+  double now_ = 0;
   int64_t generation_ = 0;
   bool fading_ = false;
   bool holding_ = false;
