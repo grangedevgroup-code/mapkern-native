@@ -659,6 +659,13 @@ bool MapImpl::renderTarget(const FrameTarget& target) {
   }
   lastCameraZ = cameraZ;
   lastCameraStep = step;
+  const World centre = transform.centerWorld();
+  if (lastCenter) {
+    const double turn = globeTurn((*lastCenter)[0], (*lastCenter)[1], centre[0], centre[1]) * 180 / kPi;
+    f.turnMax = std::max(f.turnMax, turn);
+    if (turn > 5 && std::abs(transform.zoom() - (*lastCenter)[2]) < 0.05) f.bigTurns++;
+  }
+  lastCenter = std::array<double, 3>{centre[0], centre[1], transform.zoom()};
   if (lastFrameMs > f.worst.back().ms) {
     f.worst.back() = {start, lastFrameMs, tickMs, uploadMs, ps.drapeMs, ps.labelMs, draws};
     std::sort(f.worst.begin(), f.worst.end(), [](const SlowFrame& a, const SlowFrame& b) { return a.ms > b.ms; });
@@ -824,6 +831,8 @@ std::string MapImpl::diagnosticsJson() {
                {"labelMaxMs", r2(f.labelMax)},
                {"cameraFlips", static_cast<double>(f.cameraFlips)},
                {"cameraStepMaxPct", r2(f.cameraStepMax * 100)},
+               {"turnMaxDeg", r2(f.turnMax)},
+               {"bigTurns", static_cast<double>(f.bigTurns)},
                {"worst", Value(std::move(worst))}};
   static const char* kinds[] = {"style", "source", "tile", "glyphs", "sprite", "image"};
   Object requests;
