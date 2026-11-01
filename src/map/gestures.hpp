@@ -1,9 +1,11 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "camera/transform.hpp"
@@ -17,6 +19,14 @@ struct GestureHost {
   std::function<void()> interrupt;
   std::function<void()> changed;
   std::function<void(double, double, double)> zoomBy;
+};
+
+struct PanStats {
+  uint64_t moves = 0;
+  uint64_t wild = 0;
+  double maxSlipPx = 0;
+  double maxTurnDeg = 0;
+  double maxTurnRatio = 0;
 };
 
 struct GestureOptions {
@@ -43,6 +53,7 @@ class Gestures {
   bool touching() const { return !pointers_.empty(); }
   bool animating() const { return inertia_.has_value() || wheel_.has_value(); }
   bool active() const { return mode_.kind != Kind::Idle && mode_.kind != Kind::Press; }
+  PanStats takePanStats() { return std::exchange(panStats_, PanStats{}); }
 
   GestureOptions options;
 
@@ -74,9 +85,9 @@ class Gestures {
     double t = 0, x = 0, y = 0;
   };
   struct Inertia {
-    double start = 0, duration = 0;
+    double start = 0, duration = 0, done = 0;
     std::array<double, 2> from{0, 0}, offset{0, 0};
-    Point3 anchor{0, 0, 0};
+    std::optional<Point3> anchor;
   };
   struct WheelZoom {
     double target = 0;
@@ -88,13 +99,15 @@ class Gestures {
     double t = 0, x = 0, y = 0;
   };
 
-  void startInertia(const Point3& anchor, double x, double y, double time);
+  void startInertia(const std::optional<Point3>& anchor, double x, double y, double time);
   TwoFinger twoFinger(const Pointer& a, const Pointer& b) const;
   void beginTwoFinger(const Pointer& a, const Pointer& b, double time);
   void moveTwoFinger();
   void detectDoubleTap(double t, double x, double y);
   void place(const Point3& anchor, double x, double y, bool keepSize);
   void follow(std::optional<Point3>& anchor, double x, double y);
+  void drag(std::optional<Point3>& anchor, double fromX, double fromY, double x, double y);
+  void track(const World& before, double moved, double slip);
 
   Transform& transform_;
   GestureHost host_;
@@ -104,6 +117,7 @@ class Gestures {
   std::optional<Inertia> inertia_;
   std::optional<WheelZoom> wheel_;
   std::optional<Tap> lastTap_;
+  PanStats panStats_;
 };
 
 }
