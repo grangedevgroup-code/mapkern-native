@@ -10,6 +10,8 @@ import com.grangedevgroup.mapkern.Diagnostics
 import com.grangedevgroup.mapkern.DiagnosticsOptions
 import com.grangedevgroup.mapkern.MapOptions
 import com.grangedevgroup.mapkern.MapView
+import org.json.JSONObject
+import java.io.File
 
 class MainActivity : Activity() {
     private lateinit var map: MapView
@@ -39,6 +41,10 @@ class MainActivity : Activity() {
             "gestures" -> map.post { Bench(map).gestures() }
             "globe" -> map.post { Bench(map).globe() }
             "views" -> map.post { Bench(map).views() }
+            "script" -> {
+                val file = File(getExternalFilesDir(null), extras?.getString("script") ?: "bench.json")
+                if (file.isFile) map.post { Bench(map).script(JSONObject(file.readText())) }
+            }
         }
     }
 
