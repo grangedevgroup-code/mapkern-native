@@ -47,6 +47,13 @@ class RasterSource : public Source {
     Source::setCacheBytes(bytes);
     if (manager) manager->options.cacheBytes = bytes;
   }
+  size_t cachedBytes() const override { return manager ? manager->cachedBytes() : 0; }
+  void evictionCandidates(std::vector<TileCandidate>& out, size_t owner) const override {
+    if (manager) manager->evictionCandidates(out, owner);
+  }
+  void dropTile(uint64_t key) override {
+    if (manager) manager->dropTile(key);
+  }
   void load() override;
   void update(Transform& transform, double now, const std::vector<Transform*>& predicted) override;
   bool uploadPending(UploadBudget& budget, double now) override;
