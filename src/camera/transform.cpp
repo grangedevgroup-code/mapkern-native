@@ -12,6 +12,10 @@ constexpr double kDeg = kPi / 180;
 const double kDefaultFov = 2 * std::atan(0.375) / kDeg;
 constexpr double kMaxGroundAngle = 88 * kDeg;
 constexpr double kInf = std::numeric_limits<double>::infinity();
+constexpr double kGlobeReach = 4;
+constexpr double kGlobeSubStep = 0.05;
+constexpr double kGlobeSpinZoom = 7;
+constexpr double kGlobeSpinLatitude = 60 * kDeg;
 
 double dot3(const std::array<double, 3>& a, const double* b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
 
@@ -482,13 +486,13 @@ std::array<double, 3> Transform::globeRay(double px, double py) {
   return {b[0] / b[3] - globeCam_[0], b[1] / b[3] - globeCam_[1], b[2] / b[3] - globeCam_[2]};
 }
 
-World Transform::localToMercator(double lx, double ly, double lz) const {
+World Transform::localToMercator(double lx, double ly, double lz, bool keepPoles) const {
   const double up = lz + radius_;
   return mercatorFromUnit(up * axisC_[0] + lx * axisE_[0] - ly * axisN_[0], up * axisC_[1] + lx * axisE_[1] - ly * axisN_[1],
-                          up * axisC_[2] + lx * axisE_[2] - ly * axisN_[2]);
+                          up * axisC_[2] + lx * axisE_[2] - ly * axisN_[2], keepPoles);
 }
 
-std::optional<World> Transform::sphereHit(double px, double py, double lift, bool clamp) {
+std::optional<World> Transform::sphereHit(double px, double py, double lift, bool clamp, bool keepPoles) {
   const auto dir = globeRay(px, py);
   const double r = radius_ + lift;
   const double ox = globeCam_[0], oy = globeCam_[1], oz = globeCam_[2] + radius_;
@@ -498,14 +502,14 @@ std::optional<World> Transform::sphereHit(double px, double py, double lift, boo
   const double disc = b * b - a * c;
   if (disc >= 0) {
     const double t = (-b - std::sqrt(disc)) / a;
-    if (t >= 0) return localToMercator(ox + dir[0] * t, oy + dir[1] * t, oz + dir[2] * t - radius_);
+    if (t >= 0) return localToMercator(ox + dir[0] * t, oy + dir[1] * t, oz + dir[2] * t - radius_, keepPoles);
   }
   if (!clamp) return std::nullopt;
   const double t = std::max(0.0, -b / a);
   const double qx = ox + dir[0] * t, qy = oy + dir[1] * t, qz = oz + dir[2] * t;
   const double q = std::hypot(qx, qy, qz);
   if (q < 1e-12) return World{cx_, cy_};
-  return localToMercator(qx / q * r, qy / q * r, qz / q * r - radius_);
+  return localToMercator(qx / q * r, qy / q * r, qz / q * r - radius_, keepPoles);
 }
 
 std::optional<World> Transform::refineGlobe(World guess, double px, double py, double h) {
@@ -530,14 +534,14 @@ std::optional<World> Transform::refineGlobe(World guess, double px, double py, d
   return std::nullopt;
 }
 
-std::optional<World> Transform::unprojectGlobe(double px, double py, std::optional<double> groundZ, bool clamp) {
+std::optional<World> Transform::unprojectGlobe(double px, double py, std::optional<double> groundZ, bool clamp, bool keepPoles) {
   const double h = groundZ.value_or(elevationPx_);
-  if (globeAmount_ >= 1) return sphereHit(px, py, h, clamp);
+  if (globeAmount_ >= 1) return sphereHit(px, py, h, clamp, keepPoles);
   const auto flat = flatUnproject(px, py, h);
   if (flat) {
     if (auto refined = refineGlobe(*flat, px, py, h)) return refined;
   }
-  const auto round = sphereHit(px, py, h, false);
+  const auto round = sphereHit(px, py, h, false, keepPoles);
   std::optional<World> second;
   if (round) second = refineGlobe(*round, px, py, h);
   if (second || !clamp) return second;
@@ -619,6 +623,12 @@ std::optional<World> Transform::unproject(double px, double py, std::optional<do
   return flatUnproject(px, py, groundZ);
 }
 
+std::optional<World> Transform::unprojectExact(double px, double py, std::optional<double> groundZ) {
+  update();
+  if (globeAmount_ > 0) return unprojectGlobe(px, py, groundZ, false, true);
+  return flatUnproject(px, py, groundZ);
+}
+
 std::optional<World> Transform::flatUnproject(double px, double py, std::optional<double> groundZ) {
   std::array<double, 3> origin, dir;
   screenRay(px, py, origin, dir);
@@ -679,6 +689,8 @@ double Transform::rotateGlobeTo(World world, double px, double py, std::optional
   const double startZoom = z_;
   const double startStretch = std::cosh(kPi * (1 - 2 * cy_));
   const double g = globeAmount_;
+  const double radius = std::max(1.0, radius_);
+  double tx = px, ty = py;
   auto place = [&](double x, double y) {
     setCenterWorld(x, y);
     if (keepSize) setZoom(startZoom + g * std::log2(startStretch / std::cosh(kPi * (1 - 2 * cy_))));
@@ -686,57 +698,94 @@ double Transform::rotateGlobeTo(World world, double px, double py, std::optional
   auto miss = [&](double r[2]) {
     double p[2];
     projectTo(p, world[0], world[1], z ? *z * worldSize() : 0);
-    r[0] = p[0] - px;
-    r[1] = p[1] - py;
+    r[0] = p[0] - tx;
+    r[1] = p[1] - ty;
     return r[0] * r[0] + r[1] * r[1];
   };
-  double r[2];
-  double err = miss(r);
-  double lambda = 1e-3;
-  for (int iter = 0; iter < 24 && err > 1e-4; iter++) {
-    const double x0 = cx_, y0 = cy_;
-    const double h = 0.25 / worldSize();
-    double rx[2], ry[2];
-    place(x0 + h, y0);
-    miss(rx);
-    const double hy = y0 + h <= 1 ? h : -h;
-    place(x0, y0 + hy);
-    miss(ry);
-    const double jx[2] = {(rx[0] - r[0]) / h, (rx[1] - r[1]) / h};
-    const double jy[2] = {(ry[0] - r[0]) / hy, (ry[1] - r[1]) / hy};
-    const double a = jx[0] * jx[0] + jx[1] * jx[1], b = jx[0] * jy[0] + jx[1] * jy[1], d = jy[0] * jy[0] + jy[1] * jy[1];
-    const double gx = jx[0] * r[0] + jx[1] * r[1], gy = jy[0] * r[0] + jy[1] * r[1];
-    bool improved = false;
-    for (int attempt = 0; attempt < 8 && !improved; attempt++) {
-      const double damp = lambda * (a + d);
-      const double A = a + damp, D = d + damp;
-      const double det = A * D - b * b;
-      if (!(std::abs(det) > 0)) break;
-      double sx = -(D * gx - b * gy) / det;
-      double sy = -(A * gy - b * gx) / det;
-      const double longest = std::max(std::abs(sx), std::abs(sy));
-      if (longest > 0.05) {
-        sx *= 0.05 / longest;
-        sy *= 0.05 / longest;
+  double from[2];
+  const bool seen = projectTo(from, world[0], world[1], z ? *z * worldSize() : 0) > 0;
+  const double span = seen ? std::hypot(px - from[0], py - from[1]) : 0;
+  const int steps = std::clamp(static_cast<int>(std::ceil(span / (kGlobeSubStep * radius))), 1, 32);
+  for (int k = 1; k <= steps; k++) {
+    tx = k == steps ? px : from[0] + (px - from[0]) * k / steps;
+    ty = k == steps ? py : from[1] + (py - from[1]) * k / steps;
+    const double ox = cx_, oy = cy_;
+    double r[2];
+    double err = miss(r);
+    const double reach = kGlobeReach * std::sqrt(err) / radius;
+    double lambda = 1e-3;
+    for (int iter = 0; iter < 24 && err > 1e-4; iter++) {
+      const double x0 = cx_, y0 = cy_;
+      const double h = 0.25 / worldSize();
+      double rx[2], ry[2];
+      place(x0 + h, y0);
+      miss(rx);
+      const double hy = y0 + h <= 1 ? h : -h;
+      place(x0, y0 + hy);
+      miss(ry);
+      const double jx[2] = {(rx[0] - r[0]) / h, (rx[1] - r[1]) / h};
+      const double jy[2] = {(ry[0] - r[0]) / hy, (ry[1] - r[1]) / hy};
+      const double a = jx[0] * jx[0] + jx[1] * jx[1], b = jx[0] * jy[0] + jx[1] * jy[1], d = jy[0] * jy[0] + jy[1] * jy[1];
+      const double gx = jx[0] * r[0] + jx[1] * r[1], gy = jy[0] * r[0] + jy[1] * r[1];
+      bool improved = false;
+      for (int attempt = 0; attempt < 8 && !improved; attempt++) {
+        const double damp = lambda * (a + d);
+        const double A = a + damp, D = d + damp;
+        const double det = A * D - b * b;
+        if (!(std::abs(det) > 0)) break;
+        double sx = -(D * gx - b * gy) / det;
+        double sy = -(A * gy - b * gx) / det;
+        const double longest = std::max(std::abs(sx), std::abs(sy));
+        if (longest > 0.05) {
+          sx *= 0.05 / longest;
+          sy *= 0.05 / longest;
+        }
+        if (globeTurn(ox, oy, x0 + sx, y0 + sy) > reach) {
+          const double room = reach - globeTurn(ox, oy, x0, y0);
+          const double step = globeTurn(x0, y0, x0 + sx, y0 + sy);
+          if (room <= 0 || step <= 0) break;
+          sx *= room / step;
+          sy *= room / step;
+        }
+        place(x0 + sx, y0 + sy);
+        double rn[2];
+        const double e = miss(rn);
+        if (e < err) {
+          err = e;
+          r[0] = rn[0];
+          r[1] = rn[1];
+          lambda = std::max(lambda / 3, 1e-9);
+          improved = true;
+        } else {
+          lambda *= 4;
+        }
       }
-      place(x0 + sx, y0 + sy);
-      double rn[2];
-      const double e = miss(rn);
-      if (e < err) {
-        err = e;
-        r[0] = rn[0];
-        r[1] = rn[1];
-        lambda = std::max(lambda / 3, 1e-9);
-        improved = true;
-      } else {
-        lambda *= 4;
+      if (!improved) {
+        place(x0, y0);
+        break;
       }
     }
-    if (!improved) {
-      place(x0, y0);
-      break;
-    }
+    if (k < steps && err > 0.25) break;
   }
+  return z_ - startZoom;
+}
+
+double Transform::panGlobe(double dx, double dy) {
+  update();
+  const double startZoom = z_;
+  const double m0 = kPi * (1 - 2 * cy_);
+  const double lat = std::atan(std::sinh(m0));
+  const double b = bearing_ * kDeg;
+  const double east = dx * std::cos(b) - dy * std::sin(b);
+  const double north = -dx * std::sin(b) - dy * std::cos(b);
+  const double radius = std::max(1.0, radius_);
+  const double level = z_ + std::log2(std::cosh(m0));
+  const double t = std::clamp((kGlobeSpinZoom - level) / 4, 0.0, 1.0);
+  const double spin = (1 - t) + t * std::cos(lat) / std::cos(std::min(std::abs(lat), kGlobeSpinLatitude));
+  const double newLat = std::clamp(lat - north / radius, -kMaxLatitude * kDeg, kMaxLatitude * kDeg);
+  const double x = cx_ - east / (radius * std::cos(lat)) * spin / (2 * kPi);
+  setCenterWorld(x, mercatorY(newLat / kDeg));
+  setZoom(startZoom + globeAmount_ * std::log2(std::cosh(m0) / std::cosh(kPi * (1 - 2 * cy_))));
   return z_ - startZoom;
 }
 
