@@ -139,8 +139,12 @@ class MapImpl {
     double uploadSum = 0, uploadMax = 0, drapeSum = 0, drapeMax = 0, labelSum = 0, labelMax = 0;
     std::array<uint64_t, 6> buckets{};
     std::array<SlowFrame, 4> worst{};
+    uint64_t cameraFlips = 0;
+    double cameraStepMax = 0;
   };
   FrameWindow frameWindow;
+  double lastCameraZ = 0;
+  double lastCameraStep = 0;
   double uploadMs = 0;
   size_t uploadTurn = 0;
   double lastFrameStart = 0;
