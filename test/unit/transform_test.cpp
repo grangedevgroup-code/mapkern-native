@@ -1,3 +1,6 @@
+#include <algorithm>
+#include <cmath>
+
 #include "camera/transform.hpp"
 #include "check.hpp"
 
@@ -67,6 +70,31 @@ TEST("transform: globe unproject inverts project") {
     const auto p = t.project((*w)[0], (*w)[1]);
     EXPECT_NEAR(p.x, 420, 1e-4);
     EXPECT_NEAR(p.y, 310, 1e-4);
+  }
+}
+
+TEST("transform: an exact globe pick lands on its pixel, polar caps included") {
+  for (double pitch : {0.0, 40.0}) {
+    Transform t;
+    t.resize(800, 1236);
+    t.setZoomRange(-2, 22);
+    t.setProjection(Projection::Globe);
+    t.setZoom(1.8);
+    t.setPitch(pitch);
+    t.setBearing(30);
+    t.setCenter(0, -60);
+    double worst = 0;
+    int caps = 0;
+    for (double y = 20; y < 1236; y += 20)
+      for (double x = 10; x < 800; x += 20) {
+        const auto w = t.unprojectExact(x, y);
+        if (!w) continue;
+        if ((*w)[1] > 1) caps++;
+        const auto p = t.project((*w)[0], (*w)[1]);
+        worst = std::max(worst, std::hypot(p.x - x, p.y - y));
+      }
+    EXPECT(caps > 0);
+    EXPECT(worst < 1e-3);
   }
 }
 
