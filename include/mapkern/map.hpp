@@ -64,7 +64,7 @@ struct MapOptions {
   double pixelRatio = 1;
   std::string cacheDirectory;
   uint64_t diskCacheBytes = uint64_t{1} << 30;
-  size_t tileCacheBytes = 192u << 20;
+  size_t tileCacheBytes = 0;
   int requestTimeoutMs = 30000;
   double fadeDuration = 200;
   bool offline = false;
