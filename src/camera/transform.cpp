@@ -178,6 +178,26 @@ double Transform::lowestZoom() {
   return std::max(minZoom, std::min(maxZoom, view().fit));
 }
 
+double Transform::flatZoom(double pitch) const {
+  Transform probe = *this;
+  probe.setProjection(Projection::Mercator);
+  probe.setPitch(pitch);
+  const double lng = lngFromMercatorX(cx_), lat = latFromMercatorY(cy_);
+  auto keeps = [&](double zoom) {
+    probe.setZoom(zoom);
+    probe.setCenter(lng, lat);
+    return probe.zoom() == zoom && std::abs(probe.cy_ - cy_) < 1e-9;
+  };
+  double lo = z_, hi = maxZoom;
+  if (keeps(lo) || !keeps(hi)) return lo;
+  for (int i = 0; i < 48; i++) {
+    const double mid = (lo + hi) / 2;
+    if (keeps(mid)) hi = mid;
+    else lo = mid;
+  }
+  return hi;
+}
+
 Transform::ViewExtent Transform::view() const {
   const bool wraps = renderWorldCopies && !limits_;
   Rect bounds{limits_ ? limits_->x0 : 0, std::max(0.0, limits_ ? limits_->y0 : 0), limits_ ? limits_->x1 : 1,
