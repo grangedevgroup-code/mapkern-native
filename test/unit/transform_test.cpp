@@ -98,6 +98,44 @@ TEST("transform: an exact globe pick lands on its pixel, polar caps included") {
   }
 }
 
+TEST("transform: leaving the globe keeps the zoom where a flat map can, else zooms in just enough to keep the centre") {
+  Transform t;
+  t.resize(601, 928);
+  t.setZoomRange(-2, 22);
+  t.setPitchRange(0, 85);
+  t.setProjection(Projection::Globe);
+  t.setZoom(1.79);
+  t.setCenter(0, 24.26);
+  EXPECT(t.flatZoom(0) == 1.79);
+  EXPECT(t.flatZoom(60) == 1.79);
+  t.setCenter(10, 55);
+  t.setZoom(1.12);
+  const double z = t.flatZoom(0);
+  EXPECT(z > 1.12 && z < 1.7);
+  Transform flat = t;
+  flat.setZoom(z);
+  flat.setProjection(Projection::Mercator);
+  EXPECT_NEAR(flat.center().lat, 55, 1e-6);
+  EXPECT_NEAR(flat.center().lng, 10, 1e-6);
+  EXPECT_NEAR(flat.zoom(), z, 1e-9);
+  Transform lower = t;
+  lower.setZoom(z - 0.01);
+  lower.setProjection(Projection::Mercator);
+  EXPECT(std::abs(lower.center().lat - 55) > 1e-3);
+}
+
+TEST("transform: switching to the globe keeps the zoom and the centre") {
+  Transform t;
+  t.resize(601, 928);
+  t.setZoomRange(-2, 22);
+  t.setZoom(13.5);
+  t.setCenter(-122.33, 47.61);
+  t.setProjection(Projection::Globe);
+  EXPECT_NEAR(t.zoom(), 13.5, 1e-12);
+  EXPECT_NEAR(t.center().lat, 47.61, 1e-9);
+  EXPECT_NEAR(t.center().lng, -122.33, 1e-9);
+}
+
 TEST("transform: covering tiles reach the centre zoom and are sorted") {
   auto t = make(12.4, 45, 20);
   CoverOptions o;
