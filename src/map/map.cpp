@@ -684,7 +684,8 @@ bool MapImpl::renderTarget(const FrameTarget& target) {
   if (lastCenter) {
     const double turn = globeTurn((*lastCenter)[0], (*lastCenter)[1], centre[0], centre[1]) * 180 / kPi;
     f.turnMax = std::max(f.turnMax, turn);
-    if (turn > 5 && std::abs(transform.zoom() - (*lastCenter)[2]) < 0.05) f.bigTurns++;
+    const double elapsed = std::max(1.0, start - lastFrameStart);
+    if (turn > 5 && turn / elapsed > 0.3 && std::abs(transform.zoom() - (*lastCenter)[2]) < 0.05) f.bigTurns++;
   }
   lastCenter = std::array<double, 3>{centre[0], centre[1], transform.zoom()};
   if (lastFrameMs > f.worst.back().ms) {
