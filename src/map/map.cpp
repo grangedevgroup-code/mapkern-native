@@ -715,16 +715,18 @@ std::string MapImpl::currentView() {
 
 void MapImpl::setView(const std::string& v) {
   ensureDemoTerrain();
-  transform.setProjection(v == "globe" ? Projection::Globe : Projection::Mercator);
+  const bool globe = v == "globe";
   const double pitch = v == "tilted" ? std::min(60.0, options.maxPitch) : 0;
-  const double fit = v == "globe" ? globeFitZoom(transform.width, transform.height, transform.fov(), transform.center().lat)
-                                  : std::numeric_limits<double>::infinity();
-  const double zoom = std::min(transform.zoom(), fit);
+  if (!globe) {
+    motion.reset();
+    gestures.stopMomentum();
+    transform.setZoom(transform.flatZoom(pitch));
+  }
+  transform.setProjection(globe ? Projection::Globe : Projection::Mercator);
   CameraOptions c;
   c.pitch = pitch;
-  c.zoom = zoom;
   AnimationOptions a;
-  a.duration = zoom < transform.zoom() - 1 ? 1200 : 500;
+  a.duration = 500;
   easeTo(c, a);
 }
 
@@ -1034,7 +1036,9 @@ double Map::pitch() const { return impl_->transform.pitch(); }
 double Map::centerLng() const { return impl_->transform.center().lng; }
 double Map::centerLat() const { return impl_->transform.center().lat; }
 void Map::setProjection(bool g) {
-  impl_->transform.setProjection(g ? Projection::Globe : Projection::Mercator);
+  Transform& t = impl_->transform;
+  if (!g && t.projection() == Projection::Globe) t.setZoom(t.flatZoom(t.pitch()));
+  t.setProjection(g ? Projection::Globe : Projection::Mercator);
   impl_->invalidate();
 }
 bool Map::globe() const { return impl_->transform.projection() == Projection::Globe; }
