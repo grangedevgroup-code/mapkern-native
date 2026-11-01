@@ -317,3 +317,22 @@ TEST("manager: eviction candidates are only tiles off screen, oldest first, and 
   EXPECT(m.stats().evicted == 1);
   EXPECT(m.stats().blankPending == 0);
 }
+
+TEST("manager: the two coarsest levels are never offered for eviction") {
+  Mailbox box;
+  RequestScheduler scheduler;
+  auto loader = std::make_shared<FakeLoader>(&box);
+  ManagerOptions options;
+  options.cacheBytes = size_t{1} << 30;
+  TileManager<FakeData> m("test", Tiling{}, loader, scheduler, options, ManagerEvents{});
+  auto t = view(1.2);
+  settle(m, box, t);
+  t.setZoom(9.3);
+  settle(m, box, t);
+  t.setCenter(-50, 10);
+  settle(m, box, t);
+  std::vector<TileCandidate> c;
+  m.evictionCandidates(c, 0);
+  EXPECT(!c.empty());
+  for (const auto& k : c) EXPECT(k.z > 1);
+}
