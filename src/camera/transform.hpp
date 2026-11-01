@@ -106,6 +106,7 @@ class Transform {
   void setFov(double degrees);
   void setPitchRange(double minPitch, double maxPitch);
   double lowestZoom();
+  double flatZoom(double pitch) const;
 
   void update();
   void surfaceLocal(double x, double y, double h, double out[3]);
