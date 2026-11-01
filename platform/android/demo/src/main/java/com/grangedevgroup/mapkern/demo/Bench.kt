@@ -3,16 +3,23 @@ package com.grangedevgroup.mapkern.demo
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import com.grangedevgroup.mapkern.MapView
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlin.math.cos
 import kotlin.math.sin
 
 class Bench(private val view: View, private val done: () -> Unit = {}) {
     private val handler = Handler(Looper.getMainLooper())
     private var at = 0L
+
+    companion object {
+        const val TAG = "MapkernBench"
+    }
 
     fun gestures() {
         if (view.width == 0 || view.height == 0) {
@@ -140,6 +147,50 @@ class Bench(private val view: View, private val done: () -> Unit = {}) {
         call { map.setView("globe") }
         pause(2500)
         handler.postAtTime(done, at)
+    }
+
+    fun script(json: JSONObject) {
+        if (view.width == 0 || view.height == 0) {
+            handler.postDelayed({ script(json) }, 200)
+            return
+        }
+        at = SystemClock.uptimeMillis() + 1000
+        run(json.getJSONArray("steps"), view.width.toFloat(), view.height.toFloat())
+        handler.postAtTime({ Log.i(TAG, "done") }, at)
+        handler.postAtTime(done, at)
+    }
+
+    private fun run(steps: JSONArray, w: Float, h: Float) {
+        for (i in 0 until steps.length()) {
+            val s = steps.getJSONObject(i)
+            val ms = s.optLong("ms", 300)
+            val x = s.optDouble("x", 0.5).toFloat() * w
+            val y = s.optDouble("y", 0.5).toFloat() * h
+            when (s.getString("op")) {
+                "pause" -> pause(ms)
+                "mark" -> {
+                    val name = s.getString("name")
+                    call { Log.i(TAG, "mark $name") }
+                }
+                "view" -> {
+                    val name = s.getString("name")
+                    call { (view as? MapView)?.setView(name) }
+                }
+                "fly" -> {
+                    val lng = s.getDouble("lng")
+                    val lat = s.getDouble("lat")
+                    val zoom = s.getDouble("zoom")
+                    val bearing = s.optDouble("bearing", 0.0)
+                    val pitch = s.optDouble("pitch", 0.0)
+                    call { (view as? MapView)?.flyTo(lng, lat, zoom, bearing, pitch) }
+                }
+                "pinch" -> pinch(x, y, s.getDouble("from").toFloat() * w, s.getDouble("to").toFloat() * w, ms)
+                "twist" -> twist(x, y, s.getDouble("gap").toFloat() * w, s.getDouble("deg"), ms)
+                "tilt" -> tilt(x, y, s.getDouble("gap").toFloat() * w, s.getDouble("dy").toFloat() * h, ms)
+                "drag" -> drag(s.getDouble("x0").toFloat() * w, s.getDouble("y0").toFloat() * h, s.getDouble("x1").toFloat() * w, s.getDouble("y1").toFloat() * h, ms)
+                "repeat" -> repeat(s.getInt("times")) { run(s.getJSONArray("steps"), w, h) }
+            }
+        }
     }
 
     private fun call(action: () -> Unit) {
