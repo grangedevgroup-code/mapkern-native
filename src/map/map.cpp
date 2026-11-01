@@ -412,6 +412,8 @@ CameraState MapImpl::targetState(const CameraOptions& c) {
 
 void MapImpl::jumpTo(const CameraOptions& c) {
   stop();
+  elevationIntent = ElevationIntent::Zoom;
+  elevationTo.reset();
   const CameraState to = targetState(c);
   transform.setZoom(to.zoom);
   transform.setBearing(to.bearing);
@@ -428,9 +430,16 @@ void MapImpl::easeTo(const CameraOptions& c, const AnimationOptions& a) {
   if (c.aroundX && c.aroundY && !(c.lng && c.lat)) {
     if (auto w = transform.unproject(*c.aroundX, *c.aroundY)) anchor = Anchor{*w, *c.aroundX, *c.aroundY, std::nullopt};
   }
+  aimMotion(to);
   motion = easeMotion(from, to, a.duration < 0 ? 500 : a.duration, easeOutCubic, anchor);
   motionStart = nowMs();
   invalidate();
+}
+
+void MapImpl::aimMotion(const CameraState& to) {
+  elevationIntent = ElevationIntent::Zoom;
+  elevationFrom = transform.elevation();
+  elevationTo = terrain ? terrain->elevationAt(to.x - std::floor(to.x), to.y) : std::nullopt;
 }
 
 void MapImpl::flyTo(const CameraOptions& c, const AnimationOptions& a) {
@@ -440,6 +449,7 @@ void MapImpl::flyTo(const CameraOptions& c, const AnimationOptions& a) {
   FlyOptions fly;
   fly.curve = a.curve;
   if (a.duration >= 0) fly.duration = a.duration;
+  aimMotion(to);
   motion = flyMotion(from, to, std::max(transform.width, transform.height), fly);
   motionStart = nowMs();
   invalidate();
@@ -544,16 +554,18 @@ MapStats MapImpl::stats() const {
 
 void MapImpl::tick(double now) {
   mailbox.drain(4096);
+  std::optional<double> progress;
   if (motion) {
     const double t = motion->duration > 0 ? (now - motionStart) / motion->duration : 1;
     motion->apply(transform, t);
+    progress = std::clamp(t, 0.0, 1.0);
     if (t >= 1) motion.reset();
     dirty = true;
   }
   if (gestures.step(now)) dirty = true;
   for (auto& l : layers)
     if (l->settle(now)) dirty = true;
-  updateTerrain();
+  updateTerrain(progress);
   for (auto& [id, s] : sources) s->update(transform, now, {});
   const double uploadStart = nowMs();
   UploadBudget budget{uploadStart + 6};
@@ -940,7 +952,7 @@ double MapImpl::nearPeak(Terrain& t) {
   return peak;
 }
 
-void MapImpl::updateTerrain() {
+void MapImpl::updateTerrain(std::optional<double> progress) {
   const Value& spec = styleRoot["terrain"];
   DemSource* source = nullptr;
   if (spec.isObject() && spec["source"].isString())
@@ -959,16 +971,55 @@ void MapImpl::updateTerrain() {
   terrain->exaggeration = exaggeration;
   terrain->relief = std::clamp(spec["relief"].numberOr(0), 0.0, 1.0);
   const World c = transform.centerWorld();
-  if (auto target = terrain->elevationAt(c[0], c[1])) {
+  auto target = terrain->elevationAt(c[0], c[1]);
+  const bool camera = elevationIntent == ElevationIntent::Camera && !progress;
+  if (progress && elevationTo) target = elevationFrom + (*elevationTo - elevationFrom) * *progress;
+  else if (camera)
+    if (auto aim = aimElevation(*terrain)) target = aim;
+  if (target) {
     const double before = transform.elevation();
+    const double zoom = transform.zoom();
+    if (camera && std::abs(*target - transform.elevation()) > 1e-3) transform.setElevationKeepCamera(*target);
     const auto floor = cameraFloor(*terrain);
-    const double wanted = floor ? std::max(*target, *floor) : *target;
-    if (std::abs(wanted - transform.elevation()) > 1e-3) transform.setElevation(wanted);
-    if (transform.elevation() != before) dirty = true;
+    if (camera && floor && *floor > transform.elevation() + 1e-3) {
+      backOff(*terrain);
+    } else {
+      const double wanted = floor ? std::max(*target, *floor) : *target;
+      if (std::abs(wanted - transform.elevation()) > 1e-3) transform.setElevation(wanted);
+    }
+    if (transform.elevation() != before || transform.zoom() != zoom) dirty = true;
   }
   transform.setPeak(nearPeak(*terrain));
   terrain->update(transform);
   transform.setGround(std::min(terrain->ground(), transform.elevation()));
+}
+
+std::optional<double> MapImpl::aimElevation(Terrain& t) {
+  if (transform.globeAmount() > 0) return std::nullopt;
+  const double ws = transform.worldSize();
+  const Point p = transform.centerPoint();
+  std::array<double, 3> origin, dir;
+  transform.screenRay(p.x, p.y, origin, dir);
+  const std::array<double, 3> d{dir[0] / ws, dir[1] / ws, dir[2] / ws};
+  const auto hit = t.raycast({origin[0] / ws, origin[1] / ws, origin[2] / ws}, d, std::hypot(d[0], d[1], d[2]));
+  if (!hit) return std::nullopt;
+  return t.elevationAt((*hit)[0], (*hit)[1]);
+}
+
+void MapImpl::backOff(Terrain& t) {
+  auto clear = [&](double zoom) {
+    transform.setZoom(zoom);
+    const auto floor = cameraFloor(t);
+    return !floor || *floor <= transform.elevation() + 1e-3;
+  };
+  const double requested = transform.zoom();
+  const auto zoom = highestClearZoom(requested, std::max(transform.minZoom, requested - 8), clear);
+  if (!zoom) {
+    transform.setZoom(requested);
+    if (const auto floor = cameraFloor(t)) transform.setElevation(*floor);
+    return;
+  }
+  transform.setZoom(*zoom);
 }
 
 void MapImpl::downloadRegion(double west, double south, double east, double north, int minZoom, int maxZoom,
