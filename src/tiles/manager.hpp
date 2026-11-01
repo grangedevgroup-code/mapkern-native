@@ -196,7 +196,8 @@ class TileManager {
 
   void evictionCandidates(std::vector<TileCandidate>& out, size_t owner) const {
     for (const auto& [k, t] : tiles_)
-      if (!t->retained && !t->wanted && !jobs_.contains(t->key)) out.push_back({t->lastUsed, t->z, t->bytes, t->key, owner});
+      if (!t->retained && !t->wanted && !jobs_.contains(t->key) && t->z > tiling.minZoom + 1)
+        out.push_back({t->lastUsed, t->z, t->bytes, t->key, owner});
   }
 
   void dropTile(uint64_t key) {
