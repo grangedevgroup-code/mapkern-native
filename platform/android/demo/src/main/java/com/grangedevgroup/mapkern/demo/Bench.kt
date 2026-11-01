@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
+import com.grangedevgroup.mapkern.MapView
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -105,6 +106,44 @@ class Bench(private val view: View, private val done: () -> Unit = {}) {
         drag(w * 0.08f, h * 0.06f, cx, cy, 900)
         pause(800)
         handler.postAtTime(done, at)
+    }
+
+    fun views() {
+        if (view.width == 0 || view.height == 0) {
+            handler.postDelayed({ views() }, 200)
+            return
+        }
+        val map = view as? MapView ?: return
+        at = SystemClock.uptimeMillis() + 3000
+        val w = view.width.toFloat()
+        val h = view.height.toFloat()
+        val cx = w / 2
+        val cy = h / 2
+        repeat(3) {
+            pinch(cx, cy, w * 0.15f, w * 0.6f, 500)
+            pause(700)
+        }
+        pause(1500)
+        for (next in listOf("terrain", "tilted", "globe", "terrain", "globe")) {
+            call { map.setView(next) }
+            pause(2500)
+        }
+        repeat(3) {
+            pinch(cx, cy, w * 0.6f, w * 0.15f, 500)
+            pause(700)
+        }
+        pause(1500)
+        drag(cx, h * 0.3f, cx, h * 0.62f, 900)
+        pause(2000)
+        call { map.setView("terrain") }
+        pause(2500)
+        call { map.setView("globe") }
+        pause(2500)
+        handler.postAtTime(done, at)
+    }
+
+    private fun call(action: () -> Unit) {
+        handler.postAtTime(action, at)
     }
 
     private fun pause(ms: Long) {
