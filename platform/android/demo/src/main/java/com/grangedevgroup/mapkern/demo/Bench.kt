@@ -48,6 +48,65 @@ class Bench(private val view: View, private val done: () -> Unit = {}) {
         handler.postAtTime(done, at)
     }
 
+    fun globe() {
+        if (view.width == 0 || view.height == 0) {
+            handler.postDelayed({ globe() }, 200)
+            return
+        }
+        at = SystemClock.uptimeMillis() + 3000
+        val w = view.width.toFloat()
+        val h = view.height.toFloat()
+        val cx = w / 2
+        val cy = h / 2
+        for (fy in floatArrayOf(0.3f, 0.5f, 0.7f)) {
+            drag(w * 0.2f, h * fy, w * 0.8f, h * fy, 900)
+            pause(500)
+            drag(w * 0.8f, h * fy, w * 0.2f, h * fy, 900)
+            pause(500)
+        }
+        repeat(3) {
+            drag(w * 0.3f, cy, w * 0.7f, cy, 120)
+            pause(1300)
+            drag(w * 0.7f, cy, w * 0.3f, cy, 120)
+            pause(1300)
+        }
+        drag(cx, h * 0.3f, cx, h * 0.8f, 900)
+        pause(500)
+        drag(cx, h * 0.8f, cx, h * 0.2f, 900)
+        pause(500)
+        drag(w * 0.2f, h * 0.3f, w * 0.8f, h * 0.7f, 900)
+        pause(500)
+        repeat(3) {
+            pinch(cx, cy, w * 0.15f, w * 0.6f, 500)
+            pause(600)
+        }
+        drag(w * 0.25f, cy, w * 0.75f, cy, 700)
+        pause(600)
+        drag(w * 0.75f, cy, w * 0.25f, cy, 700)
+        pause(600)
+        repeat(3) {
+            pinch(cx, cy, w * 0.6f, w * 0.15f, 500)
+            pause(600)
+        }
+        tilt(cx, cy + h * 0.15f, w * 0.35f, -h * 0.25f, 700)
+        pause(600)
+        drag(w * 0.2f, cy, w * 0.8f, cy, 900)
+        pause(500)
+        drag(w * 0.8f, cy, w * 0.2f, cy, 900)
+        pause(500)
+        tilt(cx, cy - h * 0.1f, w * 0.35f, h * 0.25f, 700)
+        pause(600)
+        twist(cx, cy, w * 0.45f, 60.0, 700)
+        pause(600)
+        drag(w * 0.2f, h * 0.4f, w * 0.8f, h * 0.4f, 900)
+        pause(500)
+        twist(cx, cy, w * 0.45f, -60.0, 700)
+        pause(600)
+        drag(w * 0.08f, h * 0.06f, cx, cy, 900)
+        pause(800)
+        handler.postAtTime(done, at)
+    }
+
     private fun pause(ms: Long) {
         at += ms
     }
