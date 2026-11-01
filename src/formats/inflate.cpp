@@ -1,5 +1,6 @@
 #include "formats/inflate.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 
@@ -66,19 +67,23 @@ struct Bits {
   void fill() {
     while (count <= 56) {
       const uint64_t byte = pos < size ? data[pos] : 0;
-      if (pos < size + 8) pos++;
+      pos++;
       buf |= byte << count;
       count += 8;
     }
   }
 
+  void check() const {
+    if (pos * 8 - static_cast<size_t>(count) > size * 8) throw FormatError("Compressed data ends early");
+  }
+
   uint32_t take(int n) {
     if (n == 0) return 0;
     if (count < n) fill();
-    if (pos > size + 4 && count < n) throw FormatError("Compressed data ends early");
     const uint32_t v = static_cast<uint32_t>(buf & ((uint64_t{1} << n) - 1));
     buf >>= n;
     count -= n;
+    check();
     return v;
   }
 
@@ -97,6 +102,7 @@ struct Bits {
       const int len = entry & 15;
       buf >>= len;
       count -= len;
+      check();
       return entry >> 4;
     }
     int code = 0, first = 0, index = 0;
@@ -239,7 +245,7 @@ uint32_t crc32(std::span<const uint8_t> data, uint32_t crc) {
 
 std::vector<uint8_t> inflateRaw(std::span<const uint8_t> data, size_t sizeHint, size_t maxSize) {
   std::vector<uint8_t> out;
-  out.reserve(sizeHint ? sizeHint : data.size() * 4);
+  out.reserve(std::min(sizeHint ? sizeHint : data.size() * 4, maxSize));
   Bits bits{data.data(), data.size(), 0};
   inflateInto(bits, out, maxSize);
   return out;
@@ -251,13 +257,13 @@ bool isZlib(std::span<const uint8_t> data) {
   return data.size() >= 2 && (data[0] & 0x0f) == 8 && (data[0] >> 4) <= 7 && ((data[0] << 8) | data[1]) % 31 == 0;
 }
 
-std::vector<uint8_t> inflateZlib(std::span<const uint8_t> data, size_t sizeHint) {
+std::vector<uint8_t> inflateZlib(std::span<const uint8_t> data, size_t sizeHint, size_t maxSize) {
   if (!isZlib(data)) throw FormatError("Not zlib data");
   if (data[1] & 0x20) throw FormatError("zlib preset dictionaries are not supported");
-  return inflateRaw(data.subspan(2), sizeHint);
+  return inflateRaw(data.subspan(2), sizeHint, maxSize);
 }
 
-std::vector<uint8_t> gunzip(std::span<const uint8_t> data) {
+std::vector<uint8_t> gunzip(std::span<const uint8_t> data, size_t maxSize) {
   std::vector<uint8_t> out;
   size_t pos = 0;
   while (pos + 10 <= data.size() && data[pos] == 0x1f && data[pos + 1] == 0x8b) {
@@ -278,7 +284,7 @@ std::vector<uint8_t> gunzip(std::span<const uint8_t> data) {
     if (p > data.size()) throw FormatError("gzip header ends early");
     Bits bits{data.data() + p, data.size() - p, 0};
     const size_t before = out.size();
-    const size_t used = inflateInto(bits, out, 1024u << 20);
+    const size_t used = inflateInto(bits, out, maxSize);
     p += used;
     if (p + 8 > data.size()) break;
     const uint32_t want = data[p] | (data[p + 1] << 8) | (data[p + 2] << 16) | (static_cast<uint32_t>(data[p + 3]) << 24);
@@ -289,9 +295,9 @@ std::vector<uint8_t> gunzip(std::span<const uint8_t> data) {
   return out;
 }
 
-std::vector<uint8_t> decompressAuto(std::span<const uint8_t> data) {
-  if (isGzip(data)) return gunzip(data);
-  if (isZlib(data)) return inflateZlib(data);
+std::vector<uint8_t> decompressAuto(std::span<const uint8_t> data, size_t maxSize) {
+  if (isGzip(data)) return gunzip(data, maxSize);
+  if (isZlib(data)) return inflateZlib(data, 0, maxSize);
   return std::vector<uint8_t>(data.begin(), data.end());
 }
 
