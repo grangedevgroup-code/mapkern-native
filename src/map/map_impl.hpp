@@ -73,7 +73,10 @@ class MapImpl {
   void error(const std::string& code, const std::string& message, const std::string& sourceId = "");
   std::string attribution() const;
   MapStats stats() const;
-  void updateTerrain();
+  void updateTerrain(std::optional<double> progress = std::nullopt);
+  std::optional<double> aimElevation(Terrain& terrain);
+  void aimMotion(const CameraState& to);
+  void backOff(Terrain& terrain);
   void setupControls();
   void ensureDemoTerrain();
   void setView(const std::string& view);
@@ -107,12 +110,24 @@ class MapImpl {
   std::function<void()> invalidateCallback;
   std::optional<CameraMotion> motion;
   double motionStart = 0;
+  enum class ElevationIntent { Zoom, Camera };
+  ElevationIntent elevationIntent = ElevationIntent::Zoom;
+  double elevationFrom = 0;
+  std::optional<double> elevationTo;
   double wakeAt = 0;
   double lastFrameMs = 0;
   CancelToken styleRequest;
 
-  Gestures gestures{transform, GestureHost{[this](double x, double y) { return pickWorld(x, y); }, [this] { motion.reset(); },
-                                           [this] { invalidate(); }, [this](double d, double x, double y) { easeZoom(d, x, y); }}};
+  Gestures gestures{transform, GestureHost{[this](double x, double y) { return pickWorld(x, y); },
+                                           [this] {
+                                             motion.reset();
+                                             elevationIntent = ElevationIntent::Camera;
+                                           },
+                                           [this] {
+                                             elevationIntent = ElevationIntent::Camera;
+                                             invalidate();
+                                           },
+                                           [this](double d, double x, double y) { easeZoom(d, x, y); }}};
 
   struct SlowFrame {
     double at = 0, ms = 0, tick = 0, upload = 0, drapes = 0, labels = 0;
