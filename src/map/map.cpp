@@ -649,6 +649,16 @@ bool MapImpl::renderTarget(const FrameTarget& target) {
   f.drapeMax = std::max(f.drapeMax, ps.drapeMs);
   f.labelSum += ps.labelMs;
   f.labelMax = std::max(f.labelMax, ps.labelMs);
+  const double ppm = transform.pixelsPerMeter();
+  const double cameraZ = transform.cameraPosition()[2] / ppm;
+  const double height = std::max(1.0, cameraZ - transform.centerElevationPixels() / ppm);
+  const double step = (cameraZ - lastCameraZ) / height;
+  if (lastCameraZ != 0) {
+    f.cameraStepMax = std::max(f.cameraStepMax, std::abs(step));
+    if (std::abs(step) > 0.01 && std::abs(lastCameraStep) > 0.01 && (step > 0) != (lastCameraStep > 0)) f.cameraFlips++;
+  }
+  lastCameraZ = cameraZ;
+  lastCameraStep = step;
   if (lastFrameMs > f.worst.back().ms) {
     f.worst.back() = {start, lastFrameMs, tickMs, uploadMs, ps.drapeMs, ps.labelMs, draws};
     std::sort(f.worst.begin(), f.worst.end(), [](const SlowFrame& a, const SlowFrame& b) { return a.ms > b.ms; });
@@ -812,6 +822,8 @@ std::string MapImpl::diagnosticsJson() {
                {"drapeMaxMs", r2(f.drapeMax)},
                {"labelAvgMs", f.frames ? r2(f.labelSum / frames) : 0.0},
                {"labelMaxMs", r2(f.labelMax)},
+               {"cameraFlips", static_cast<double>(f.cameraFlips)},
+               {"cameraStepMaxPct", r2(f.cameraStepMax * 100)},
                {"worst", Value(std::move(worst))}};
   static const char* kinds[] = {"style", "source", "tile", "glyphs", "sprite", "image"};
   Object requests;
