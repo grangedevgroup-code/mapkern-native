@@ -84,6 +84,9 @@ internal static partial class Native
     [LibraryImport(Lib, EntryPoint = "mk_map_query_features", StringMarshalling = StringMarshalling.Utf8)]
     public static partial IntPtr QueryFeatures(IntPtr map, double x, double y, string? layers, double radius);
 
+    [LibraryImport(Lib, EntryPoint = "mk_map_set_control_insets")]
+    public static partial void SetControlInsets(IntPtr map, double top, double right, double bottom, double left);
+
     [LibraryImport(Lib, EntryPoint = "mk_map_project")]
     public static partial void Project(IntPtr map, double lng, double lat, out double x, out double y);
 
