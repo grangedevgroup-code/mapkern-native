@@ -144,6 +144,10 @@ class MapImpl {
     double cameraStepMax = 0;
     uint64_t bigTurns = 0;
     double turnMax = 0;
+    uint64_t touchFrames = 0;
+    double touchMs = 0;
+    double touchGapMax = 0;
+    std::array<uint64_t, 6> touchGaps{};
   };
   FrameWindow frameWindow;
   double lastCameraZ = 0;
