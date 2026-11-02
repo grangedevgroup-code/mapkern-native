@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 
+#include "core/value.hpp"
 #include "map/map_impl.hpp"
 #include "mapkern/map.hpp"
 #include "net/http.hpp"
@@ -14,6 +15,7 @@ struct mk_map {
   void* invalidateUser = nullptr;
   mk_event_fn events = nullptr;
   void* eventsUser = nullptr;
+  std::string lastQuery;
 };
 
 namespace {
@@ -154,6 +156,7 @@ void mk_map_resize(mk_map* m, double w, double h, double r) { m->map->resize(w, 
 void mk_map_set_style(mk_map* m, const char* s) { m->map->setStyle(str(s)); }
 int mk_map_style_loaded(const mk_map* m) { return m->map->isStyleLoaded() ? 1 : 0; }
 void mk_map_add_source(mk_map* m, const char* id, const char* spec) { m->map->addSource(str(id), str(spec)); }
+void mk_map_set_geojson(mk_map* m, const char* id, const char* json) { m->map->setGeoJson(str(id), str(json)); }
 void mk_map_remove_source(mk_map* m, const char* id) { m->map->removeSource(str(id)); }
 void mk_map_add_layer(mk_map* m, const char* spec, const char* before) { m->map->addLayer(str(spec), str(before)); }
 void mk_map_remove_layer(mk_map* m, const char* id) { m->map->removeLayer(str(id)); }
@@ -170,6 +173,17 @@ size_t mk_map_attribution(const mk_map* m, char* buffer, size_t size) {
     buffer[n] = 0;
   }
   return a.size();
+}
+
+const char* mk_map_query_features(mk_map* m, double x, double y, const char* layers_json, double radius) {
+  std::vector<std::string> layers;
+  if (layers_json) {
+    if (auto parsed = mapkern::parseJson(layers_json); parsed && parsed->isArray())
+      for (const auto& layer : parsed->asArray())
+        if (layer.isString()) layers.push_back(layer.asString());
+  }
+  m->lastQuery = m->map->queryRenderedFeatures(x, y, layers, radius);
+  return m->lastQuery.c_str();
 }
 
 void mk_map_get_camera(const mk_map* m, mk_camera* c) {
