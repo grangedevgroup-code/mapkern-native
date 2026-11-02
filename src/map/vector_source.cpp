@@ -27,7 +27,78 @@ ManagerEvents Source::tileEvents() {
   return e;
 }
 
-class VectorTileLoader : public TileLoader<VectorTileData> {
+std::shared_ptr<VectorTileData> vectorTileData(VectorTileResult result, SharedBytes raw) {
+  auto data = std::make_shared<VectorTileData>();
+  size_t bytes = 0;
+  for (auto& b : result.buckets) {
+    auto bucket = std::make_unique<VectorBucket>();
+    bucket->layerId = b.layerId;
+    bucket->type = b.type;
+    bucket->extent = b.extent;
+    bucket->features = std::move(b.features);
+    bucket->labels = std::move(b.labels);
+    if (b.main) {
+      bytes += b.main->vertices.size() + b.main->indices.size() * 4;
+      bucket->cpuMain = std::move(b.main);
+    }
+    if (b.outline) {
+      bytes += b.outline->indices.size() * 4;
+      bucket->cpuOutline = std::move(b.outline);
+    }
+    bytes += bucket->features.count() * 64;
+    data->buckets[bucket->layerId] = std::move(bucket);
+  }
+  data->featureCount = result.featureCount;
+  data->bytes = bytes + (raw ? raw->size() : 0);
+  data->raw = std::move(raw);
+  return data;
+}
+
+void VectorDataLoader::upload(VectorTileData& data) {
+  Gpu& gpu = Gpu::get();
+  for (auto& [id, b] : data.buckets) {
+    if (b->cpuMain) {
+      GpuGeometry g;
+      g.vertices = gpu.vertexBuffer(b->cpuMain->vertices.data(), b->cpuMain->vertices.size());
+      g.indices = gpu.indexBuffer(b->cpuMain->indices.data(), b->cpuMain->indices.size() * 4);
+      g.indexCount = static_cast<uint32_t>(b->cpuMain->indices.size());
+      b->main = std::move(g);
+      if (b->cpuOutline && !b->cpuOutline->indices.empty()) {
+        GpuGeometry o;
+        o.vertices = b->main->vertices;
+        o.sharedVertices = true;
+        o.indices = gpu.indexBuffer(b->cpuOutline->indices.data(), b->cpuOutline->indices.size() * 4);
+        o.indexCount = static_cast<uint32_t>(b->cpuOutline->indices.size());
+        b->outline = std::move(o);
+      }
+    }
+    b->cpuMain.reset();
+    b->cpuOutline.reset();
+  }
+  data.uploaded = true;
+}
+
+void VectorDataLoader::release(VectorTileData& data) {
+  for (auto& [id, b] : data.buckets) {
+    if (b->main) b->main->vertices.release(), b->main->indices.release();
+    if (b->outline) b->outline->indices.release();
+    b->paint.release();
+  }
+  data.buckets.clear();
+}
+
+size_t VectorDataLoader::byteSize(const VectorTileData& data) const {
+  size_t bytes = data.raw ? data.raw->size() : 0;
+  for (const auto& [id, b] : data.buckets) {
+    if (b->main) bytes += b->main->vertices.bytes + b->main->indices.bytes;
+    if (b->outline) bytes += b->outline->indices.bytes;
+    bytes += b->paint.bytes() + b->features.count() * 64;
+    if (b->cpuMain) bytes += b->cpuMain->vertices.size() + b->cpuMain->indices.size() * 4;
+  }
+  return bytes ? bytes : data.bytes;
+}
+
+class VectorTileLoader : public VectorDataLoader {
  public:
   VectorTileLoader(SourceContext& ctx, TileSet set, std::shared_ptr<bool> alive, std::function<std::shared_ptr<const std::vector<LayerProgram>>()> programs,
                    PromoteId promote)
@@ -77,29 +148,7 @@ class VectorTileLoader : public TileLoader<VectorTileData> {
                          const double started = diag::steadyMs();
                          VectorTileResult result = buildVectorTile(*r.data, tile.z, tile.x, tile.y, *programs, false, promote);
                          diag::stage(diag::Stage::VectorTile, diag::steadyMs() - started, r.data->size());
-                         auto data = std::make_shared<VectorTileData>();
-                         size_t bytes = 0;
-                         for (auto& b : result.buckets) {
-                           auto bucket = std::make_unique<VectorBucket>();
-                           bucket->layerId = b.layerId;
-                           bucket->type = b.type;
-                           bucket->extent = b.extent;
-                           bucket->features = std::move(b.features);
-                           bucket->labels = std::move(b.labels);
-                           if (b.main) {
-                             bytes += b.main->vertices.size() + b.main->indices.size() * 4;
-                             bucket->cpuMain = std::move(b.main);
-                           }
-                           if (b.outline) {
-                             bytes += b.outline->indices.size() * 4;
-                             bucket->cpuOutline = std::move(b.outline);
-                           }
-                           bytes += bucket->features.count() * 64;
-                           data->buckets[bucket->layerId] = std::move(bucket);
-                         }
-                         data->featureCount = result.featureCount;
-                         data->bytes = bytes + r.data->size();
-                         data->raw = r.data;
+                         auto data = vectorTileData(std::move(result), r.data);
                          box->post([alive, done, data] {
                            if (*alive) done(data);
                          });
@@ -117,54 +166,6 @@ class VectorTileLoader : public TileLoader<VectorTileData> {
                });
   }
 
-  bool needsUpload(const VectorTileData& data) const override { return !data.uploaded; }
-
-  void upload(VectorTileData& data) override {
-    Gpu& gpu = Gpu::get();
-    for (auto& [id, b] : data.buckets) {
-      if (b->cpuMain) {
-        GpuGeometry g;
-        g.vertices = gpu.vertexBuffer(b->cpuMain->vertices.data(), b->cpuMain->vertices.size());
-        g.indices = gpu.indexBuffer(b->cpuMain->indices.data(), b->cpuMain->indices.size() * 4);
-        g.indexCount = static_cast<uint32_t>(b->cpuMain->indices.size());
-        b->main = std::move(g);
-        if (b->cpuOutline && !b->cpuOutline->indices.empty()) {
-          GpuGeometry o;
-          o.vertices = b->main->vertices;
-          o.sharedVertices = true;
-          o.indices = gpu.indexBuffer(b->cpuOutline->indices.data(), b->cpuOutline->indices.size() * 4);
-          o.indexCount = static_cast<uint32_t>(b->cpuOutline->indices.size());
-          b->outline = std::move(o);
-        }
-      }
-      b->cpuMain.reset();
-      b->cpuOutline.reset();
-    }
-    data.uploaded = true;
-  }
-
-  void release(VectorTileData& data) override {
-    for (auto& [id, b] : data.buckets) {
-      if (b->main) b->main->vertices.release(), b->main->indices.release();
-      if (b->outline) b->outline->indices.release();
-      b->paint.release();
-    }
-    data.buckets.clear();
-  }
-
-  size_t byteSize(const VectorTileData& data) const override {
-    size_t bytes = data.raw ? data.raw->size() : 0;
-    for (const auto& [id, b] : data.buckets) {
-      if (b->main) bytes += b->main->vertices.bytes + b->main->indices.bytes;
-      if (b->outline) bytes += b->outline->indices.bytes;
-      bytes += b->paint.bytes() + b->features.count() * 64;
-      if (b->cpuMain) bytes += b->cpuMain->vertices.size() + b->cpuMain->indices.size() * 4;
-    }
-    return bytes ? bytes : data.bytes;
-  }
-
-  bool emptyIsFinal() const override { return true; }
-
  private:
   SourceContext& ctx_;
   TileSet set_;
@@ -173,7 +174,9 @@ class VectorTileLoader : public TileLoader<VectorTileData> {
   PromoteId promote_;
 };
 
-VectorSource::VectorSource(std::string id, Value spec, SourceContext& ctx) : Source(std::move(id), "vector", std::move(spec), ctx) {
+VectorSource::VectorSource(std::string id, Value spec, SourceContext& ctx) : VectorSource(std::move(id), "vector", std::move(spec), ctx) {}
+
+VectorSource::VectorSource(std::string id, std::string type, Value spec, SourceContext& ctx) : Source(std::move(id), std::move(type), std::move(spec), ctx) {
   programs_ = std::make_shared<const std::vector<LayerProgram>>();
 }
 
