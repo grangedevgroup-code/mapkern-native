@@ -152,6 +152,7 @@ int mk_map_render(mk_map* m, const mk_surface* s) {
 
 int mk_map_needs_render(const mk_map* m) { return m->map->needsRender() ? 1 : 0; }
 void mk_map_resize(mk_map* m, double w, double h, double r) { m->map->resize(w, h, r); }
+void mk_map_set_control_insets(mk_map* m, double top, double right, double bottom, double left) { m->map->setControlInsets(top, right, bottom, left); }
 
 void mk_map_set_style(mk_map* m, const char* s) { m->map->setStyle(str(s)); }
 int mk_map_style_loaded(const mk_map* m) { return m->map->isStyleLoaded() ? 1 : 0; }
