@@ -9,7 +9,7 @@ let package = Package(
         .executable(name: "MapkernDemo", targets: ["MapkernDemo"]),
     ],
     targets: [
-        .binaryTarget(name: "CMapkern", path: "Mapkern.xcframework"),
+        .binaryTarget(name: "CMapkern", path: "CMapkern.xcframework"),
         .target(
             name: "Mapkern",
             dependencies: ["CMapkern"],
