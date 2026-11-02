@@ -72,6 +72,21 @@ internal static partial class Native
     [LibraryImport(Lib, EntryPoint = "mk_map_add_source", StringMarshalling = StringMarshalling.Utf8)]
     public static partial void AddSource(IntPtr map, string id, string spec);
 
+    [LibraryImport(Lib, EntryPoint = "mk_map_set_geojson", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial void SetGeoJson(IntPtr map, string id, string json);
+
+    [LibraryImport(Lib, EntryPoint = "mk_map_set_layout_property", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial void SetLayoutProperty(IntPtr map, string layer, string name, string value);
+
+    [LibraryImport(Lib, EntryPoint = "mk_map_set_filter", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial void SetFilter(IntPtr map, string layer, string? filter);
+
+    [LibraryImport(Lib, EntryPoint = "mk_map_query_features", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial IntPtr QueryFeatures(IntPtr map, double x, double y, string? layers, double radius);
+
+    [LibraryImport(Lib, EntryPoint = "mk_map_project")]
+    public static partial void Project(IntPtr map, double lng, double lat, out double x, out double y);
+
     [LibraryImport(Lib, EntryPoint = "mk_map_remove_source", StringMarshalling = StringMarshalling.Utf8)]
     public static partial void RemoveSource(IntPtr map, string id);
 
