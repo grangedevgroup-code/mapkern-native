@@ -477,6 +477,11 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_com_grangedevgroup_mapkern_MapView_
   return bytes(env, handle(ptr)->map->queryRenderedFeatures(x, y, names, radius));
 }
 
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetControlInsets(JNIEnv*, jobject, jlong ptr, jdouble top, jdouble right, jdouble bottom,
+                                                                                                  jdouble left) {
+  handle(ptr)->map->setControlInsets(top, right, bottom, left);
+}
+
 extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeClearDiskCache(JNIEnv*, jobject, jlong ptr) {
   handle(ptr)->map->clearDiskCache();
 }
