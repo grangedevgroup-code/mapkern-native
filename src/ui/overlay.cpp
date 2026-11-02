@@ -169,7 +169,7 @@ void Overlay::layout(const OverlayState& s) {
   const double b = touch ? 44 : 32;
   const double icon = touch ? 22 : 18;
   const double pad = 14;
-  const double W = s.width, H = s.height;
+  const double W = s.width - s.insetLeft - s.insetRight, H = s.height - s.insetTop - s.insetBottom;
   if (W < 4 * b || H < 4 * b) return;
   const double rx = W - m - b;
   double bottom = H - m;
@@ -396,6 +396,15 @@ void Overlay::layout(const OverlayState& s) {
         c.text(ox + 8, oy + 5 + line * static_cast<double>(i) + Canvas::ascent(px, false), lines[i], px, false, rgba(240, 244, 248, 0.96));
     };
     elements_.push_back(std::move(e));
+  }
+
+  for (auto& e : elements_) {
+    e.x += s.insetLeft;
+    e.y += s.insetTop;
+    for (auto& area : e.hits) {
+      area[0] += s.insetLeft;
+      area[1] += s.insetTop;
+    }
   }
 }
 
