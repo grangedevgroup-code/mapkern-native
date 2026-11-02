@@ -108,6 +108,7 @@ public sealed class MapView : IDisposable
     public void SetStyle(string urlOrJson) => Native.SetStyle(map, urlOrJson);
     public void AddSource(string id, string specJson) => Native.AddSource(map, id, specJson);
     public void SetGeoJson(string sourceId, string json) => Native.SetGeoJson(map, sourceId, json);
+    public void SetControlInsets(double top, double right, double bottom, double left) => Native.SetControlInsets(map, top, right, bottom, left);
     public void SetLayoutProperty(string layerId, string name, string valueJson) => Native.SetLayoutProperty(map, layerId, name, valueJson);
     public void SetFilter(string layerId, string? filterJson) => Native.SetFilter(map, layerId, filterJson);
 
