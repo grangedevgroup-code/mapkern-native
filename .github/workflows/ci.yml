@@ -142,7 +142,7 @@ jobs:
         working-directory: platform/apple
         run: xcodebuild -scheme Mapkern -destination 'generic/platform=iOS' -quiet build
       - name: Archive XCFramework
-        run: cd platform/apple && zip -qry Mapkern.xcframework.zip Mapkern.xcframework
+        run: cd platform/apple && zip -qry Mapkern.xcframework.zip CMapkern.xcframework
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: apple
