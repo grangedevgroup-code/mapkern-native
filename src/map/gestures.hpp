@@ -19,6 +19,7 @@ struct GestureHost {
   std::function<void()> interrupt;
   std::function<void()> changed;
   std::function<void(double, double, double)> zoomBy;
+  std::function<void(double, double)> click;
 };
 
 struct PanStats {
