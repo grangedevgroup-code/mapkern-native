@@ -86,6 +86,7 @@ MK_API void mk_map_shutdown_graphics(mk_map* map);
 MK_API int mk_map_render(mk_map* map, const mk_surface* surface);
 MK_API int mk_map_needs_render(const mk_map* map);
 MK_API void mk_map_resize(mk_map* map, double width, double height, double pixel_ratio);
+MK_API void mk_map_set_control_insets(mk_map* map, double top, double right, double bottom, double left);
 
 MK_API void mk_map_set_style(mk_map* map, const char* url_or_json);
 MK_API int mk_map_style_loaded(const mk_map* map);
