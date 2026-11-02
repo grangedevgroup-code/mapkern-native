@@ -1,16 +1,24 @@
 package com.grangedevgroup.mapkern
 
+import android.app.Activity
+import android.app.Application
 import android.content.Context
+import android.content.ContextWrapper
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.opengl.GLSurfaceView
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
 import android.view.MotionEvent
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicLong
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
@@ -19,9 +27,13 @@ data class MapOptions(
     val longitude: Double = 0.0,
     val latitude: Double = 0.0,
     val zoom: Double = 0.0,
+    val bearing: Double = 0.0,
+    val pitch: Double = 0.0,
     val globe: Boolean = true,
     val controls: Boolean = false,
 )
+
+data class MapClick(val longitude: Double, val latitude: Double, val x: Double, val y: Double)
 
 data class Camera(val longitude: Double, val latitude: Double, val zoom: Double, val bearing: Double, val pitch: Double)
 
@@ -36,6 +48,25 @@ class MapView @JvmOverloads constructor(
     private val density = resources.displayMetrics.density.toDouble()
     private val main = Handler(Looper.getMainLooper())
     private val listeners = CopyOnWriteArrayList<(String, String) -> Unit>()
+    private val clickListeners = CopyOnWriteArrayList<(MapClick) -> Unit>()
+    private val downloads = ConcurrentHashMap<Long, (Long, Long) -> Unit>()
+    private val nextDownload = AtomicLong(1)
+    private val host: Activity? = generateSequence(context) { (it as? ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
+    private val lifecycle = object : Application.ActivityLifecycleCallbacks {
+        override fun onActivityCreated(activity: Activity, state: Bundle?) {}
+        override fun onActivityStarted(activity: Activity) {}
+        override fun onActivityResumed(activity: Activity) {
+            if (activity === host) onResume()
+        }
+        override fun onActivityPaused(activity: Activity) {
+            if (activity === host) onPause()
+        }
+        override fun onActivityStopped(activity: Activity) {}
+        override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
+        override fun onActivityDestroyed(activity: Activity) {
+            if (activity === host) destroy()
+        }
+    }
     private val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) = updateReachability()
@@ -48,7 +79,7 @@ class MapView @JvmOverloads constructor(
         setEGLConfigChooser(8, 8, 8, 8, 24, 8)
         preserveEGLContextOnPause = true
         val cache = File(context.cacheDir, "mapkern").absolutePath
-        handle = nativeCreate(options.style, cache, options.longitude, options.latitude, options.zoom, options.globe, density, options.controls)
+        handle = nativeCreate(options.style, cache, options.longitude, options.latitude, options.zoom, options.globe, density, options.controls, options.bearing, options.pitch)
         setRenderer(object : Renderer {
             override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
                 if (handle != 0L) nativeSurfaceCreated(handle)
@@ -71,6 +102,7 @@ class MapView @JvmOverloads constructor(
         } catch (e: RuntimeException) {
         }
         updateReachability()
+        host?.application?.registerActivityLifecycleCallbacks(lifecycle)
     }
 
     private fun updateReachability() {
@@ -84,10 +116,77 @@ class MapView @JvmOverloads constructor(
         listeners.add(listener)
     }
 
+    fun onClick(listener: (MapClick) -> Unit) {
+        clickListeners.add(listener)
+    }
+
     fun setStyle(style: String) = queueEvent { if (handle != 0L) nativeSetStyle(handle, style) }
 
-    fun flyTo(longitude: Double, latitude: Double, zoom: Double, bearing: Double = 0.0, pitch: Double = 0.0) =
+    fun addSource(id: String, json: String) = queueEvent { if (handle != 0L) nativeAddSource(handle, id, json) }
+
+    fun setGeoJson(sourceId: String, json: String) = queueEvent { if (handle != 0L) nativeSetGeoJson(handle, sourceId, json) }
+
+    fun removeSource(id: String) = queueEvent { if (handle != 0L) nativeRemoveSource(handle, id) }
+
+    fun addLayer(json: String, before: String? = null) = queueEvent { if (handle != 0L) nativeAddLayer(handle, json, before ?: "") }
+
+    fun removeLayer(id: String) = queueEvent { if (handle != 0L) nativeRemoveLayer(handle, id) }
+
+    fun setPaintProperty(layer: String, name: String, json: String) =
+        queueEvent { if (handle != 0L) nativeSetPaintProperty(handle, layer, name, json) }
+
+    fun setLayoutProperty(layer: String, name: String, json: String) =
+        queueEvent { if (handle != 0L) nativeSetLayoutProperty(handle, layer, name, json) }
+
+    fun setFilter(layer: String, json: String?) = queueEvent { if (handle != 0L) nativeSetFilter(handle, layer, json ?: "") }
+
+    fun setLayerVisible(layer: String, visible: Boolean) = queueEvent { if (handle != 0L) nativeSetLayerVisible(handle, layer, visible) }
+
+    fun setTerrain(source: String, exaggeration: Double = 1.0, relief: Double = 0.5) =
+        queueEvent { if (handle != 0L) nativeSetTerrain(handle, source, exaggeration, relief) }
+
+    fun clearTerrain() = queueEvent { if (handle != 0L) nativeClearTerrain(handle) }
+
+    fun flyTo(longitude: Double, latitude: Double, zoom: Double, bearing: Double = Double.NaN, pitch: Double = Double.NaN) =
         queueEvent { if (handle != 0L) nativeFlyTo(handle, longitude, latitude, zoom, bearing, pitch) }
+
+    fun easeTo(longitude: Double, latitude: Double, zoom: Double, bearing: Double = Double.NaN, pitch: Double = Double.NaN) =
+        queueEvent { if (handle != 0L) nativeEaseTo(handle, longitude, latitude, zoom, bearing, pitch) }
+
+    fun jumpTo(longitude: Double, latitude: Double, zoom: Double, bearing: Double = Double.NaN, pitch: Double = Double.NaN) =
+        queueEvent { if (handle != 0L) nativeJumpTo(handle, longitude, latitude, zoom, bearing, pitch) }
+
+    fun project(longitude: Double, latitude: Double, callback: (x: Double, y: Double) -> Unit) = queueEvent {
+        if (handle != 0L) {
+            val p = nativeProject(handle, longitude, latitude)
+            main.post { callback(p[0], p[1]) }
+        }
+    }
+
+    fun unproject(x: Double, y: Double, callback: (longitude: Double, latitude: Double) -> Unit) = queueEvent {
+        if (handle != 0L) nativeUnproject(handle, x, y)?.let { p -> main.post { callback(p[0], p[1]) } }
+    }
+
+    fun queryFeatures(x: Double, y: Double, layers: List<String> = emptyList(), radius: Double = 8.0, callback: (JSONArray) -> Unit) = queueEvent {
+        val json = if (handle != 0L) String(nativeQueryFeatures(handle, x, y, layers.toTypedArray(), radius), Charsets.UTF_8) else "[]"
+        main.post { callback(JSONArray(json)) }
+    }
+
+    fun clearDiskCache() = queueEvent { if (handle != 0L) nativeClearDiskCache(handle) }
+
+    fun downloadRegion(
+        west: Double,
+        south: Double,
+        east: Double,
+        north: Double,
+        minZoom: Int,
+        maxZoom: Int,
+        progress: ((done: Long, total: Long) -> Unit)? = null,
+    ) {
+        val request = nextDownload.getAndIncrement()
+        if (progress != null) downloads[request] = progress
+        queueEvent { if (handle != 0L) nativeDownloadRegion(handle, west, south, east, north, minZoom, maxZoom, request) }
+    }
 
     fun setGlobe(globe: Boolean) = queueEvent { if (handle != 0L) nativeSetProjection(handle, globe) }
 
@@ -143,10 +242,25 @@ class MapView @JvmOverloads constructor(
 
     @Suppress("unused")
     private fun onNativeEvent(type: String, message: String) {
-        main.post { for (l in listeners) l(type, message) }
+        main.post {
+            for (l in listeners) l(type, message)
+            if (type == "click") {
+                val o = JSONObject(message)
+                val click = MapClick(o.getDouble("lng"), o.getDouble("lat"), o.getDouble("x"), o.getDouble("y"))
+                for (l in clickListeners) l(click)
+            }
+        }
+    }
+
+    @Suppress("unused")
+    private fun onNativeProgress(request: Long, done: Long, total: Long) {
+        val listener = downloads[request] ?: return
+        if (done >= total) downloads.remove(request)
+        main.post { listener(done, total) }
     }
 
     fun destroy() {
+        host?.application?.unregisterActivityLifecycleCallbacks(lifecycle)
         try {
             connectivity?.unregisterNetworkCallback(networkCallback)
         } catch (e: RuntimeException) {
@@ -156,7 +270,25 @@ class MapView @JvmOverloads constructor(
         if (h != 0L) queueEvent { nativeDestroy(h) }
     }
 
-    private external fun nativeCreate(style: String, cache: String, lng: Double, lat: Double, zoom: Double, globe: Boolean, ratio: Double, controls: Boolean): Long
+    private external fun nativeCreate(style: String, cache: String, lng: Double, lat: Double, zoom: Double, globe: Boolean, ratio: Double, controls: Boolean, bearing: Double, pitch: Double): Long
+    private external fun nativeEaseTo(handle: Long, lng: Double, lat: Double, zoom: Double, bearing: Double, pitch: Double)
+    private external fun nativeJumpTo(handle: Long, lng: Double, lat: Double, zoom: Double, bearing: Double, pitch: Double)
+    private external fun nativeAddSource(handle: Long, id: String, json: String)
+    private external fun nativeSetGeoJson(handle: Long, id: String, json: String)
+    private external fun nativeRemoveSource(handle: Long, id: String)
+    private external fun nativeAddLayer(handle: Long, json: String, before: String)
+    private external fun nativeRemoveLayer(handle: Long, id: String)
+    private external fun nativeSetPaintProperty(handle: Long, layer: String, name: String, value: String)
+    private external fun nativeSetLayoutProperty(handle: Long, layer: String, name: String, value: String)
+    private external fun nativeSetFilter(handle: Long, layer: String, filter: String)
+    private external fun nativeSetLayerVisible(handle: Long, layer: String, visible: Boolean)
+    private external fun nativeSetTerrain(handle: Long, source: String, exaggeration: Double, relief: Double)
+    private external fun nativeClearTerrain(handle: Long)
+    private external fun nativeProject(handle: Long, lng: Double, lat: Double): DoubleArray
+    private external fun nativeUnproject(handle: Long, x: Double, y: Double): DoubleArray?
+    private external fun nativeQueryFeatures(handle: Long, x: Double, y: Double, layers: Array<String>, radius: Double): ByteArray
+    private external fun nativeClearDiskCache(handle: Long)
+    private external fun nativeDownloadRegion(handle: Long, west: Double, south: Double, east: Double, north: Double, minZoom: Int, maxZoom: Int, request: Long)
     private external fun nativeDestroy(handle: Long)
     private external fun nativeSurfaceCreated(handle: Long)
     private external fun nativeResize(handle: Long, width: Int, height: Int, ratio: Double)
