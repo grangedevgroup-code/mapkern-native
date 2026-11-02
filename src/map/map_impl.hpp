@@ -59,6 +59,9 @@ class MapImpl {
   void pointerUp(int id, double x, double y, double time, bool cancelled);
   void wheel(double delta, double x, double y);
   std::optional<Point3> pickWorld(double px, double py);
+  void emitClick(double x, double y);
+  Value queryFeatures(double x, double y, const std::vector<std::string>& wanted, double radius);
+  void whenStyleLoaded(std::function<void()> call);
   void easeZoom(double delta, double x, double y);
 
   void addSource(const std::string& id, const Value& spec);
@@ -99,6 +102,7 @@ class MapImpl {
   std::map<std::string, std::unique_ptr<Source>> sources;
   Value styleRoot;
   bool styleLoaded = false;
+  std::vector<std::function<void()>> afterStyleLoad;
   FeatureStates states;
   std::unique_ptr<Terrain> terrain;
   std::unique_ptr<ui::Overlay> overlay;
@@ -128,7 +132,8 @@ class MapImpl {
                                              elevationIntent = ElevationIntent::Camera;
                                              invalidate();
                                            },
-                                           [this](double d, double x, double y) { easeZoom(d, x, y); }}};
+                                           [this](double d, double x, double y) { easeZoom(d, x, y); },
+                                           [this](double x, double y) { emitClick(x, y); }}};
 
   struct SlowFrame {
     double at = 0, ms = 0, tick = 0, upload = 0, drapes = 0, labels = 0;
