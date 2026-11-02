@@ -22,13 +22,23 @@ public struct MapOptions {
     public var cacheDirectory: String?
 
     public init(style: String = "https://tiles.openfreemap.org/styles/liberty", longitude: Double = 0, latitude: Double = 0, zoom: Double = 0,
-                controls: Bool = false) {
+                bearing: Double = 0, pitch: Double = 0, globe: Bool = true, controls: Bool = false) {
         self.style = style
         self.longitude = longitude
         self.latitude = latitude
         self.zoom = zoom
+        self.bearing = bearing
+        self.pitch = pitch
+        self.globe = globe
         self.controls = controls
     }
+}
+
+public struct MapClick {
+    public let longitude: Double
+    public let latitude: Double
+    public let x: Double
+    public let y: Double
 }
 
 public struct Camera {
@@ -51,6 +61,7 @@ public final class MapView: MTKView, MTKViewDelegate {
     private var touchIds: [ObjectIdentifier: Int32] = [:]
     #endif
     public var onEvent: ((String, String) -> Void)?
+    public var onClick: ((MapClick) -> Void)?
 
     public init(frame: CGRect, options: MapOptions = MapOptions()) {
         let device = MTLCreateSystemDefaultDevice()
@@ -139,7 +150,7 @@ public final class MapView: MTKView, MTKViewDelegate {
             let callbacks = Unmanaged<Callbacks>.fromOpaque(user).takeUnretainedValue()
             let t = type.map { String(cString: $0) } ?? ""
             let msg = message.map { String(cString: $0) } ?? ""
-            DispatchQueue.main.async { callbacks.view?.onEvent?(t, msg) }
+            DispatchQueue.main.async { callbacks.view?.deliver(t, msg) }
         }, user)
         if let device {
             var g = mk_graphics()
@@ -154,6 +165,13 @@ public final class MapView: MTKView, MTKViewDelegate {
 
     func wake() {
         isPaused = false
+    }
+
+    fileprivate func deliver(_ type: String, _ message: String) {
+        onEvent?(type, message)
+        guard type == "click", let data = message.data(using: .utf8),
+              let o = try? JSONSerialization.jsonObject(with: data) as? [String: Double] else { return }
+        onClick?(MapClick(longitude: o["lng"] ?? 0, latitude: o["lat"] ?? 0, x: o["x"] ?? 0, y: o["y"] ?? 0))
     }
 
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -189,10 +207,81 @@ public final class MapView: MTKView, MTKViewDelegate {
         wake()
     }
 
+    public func setGeoJson(_ sourceId: String, json: String) {
+        guard let map else { return }
+        mk_map_set_geojson(map, sourceId, json)
+        wake()
+    }
+
+    public func removeSource(_ id: String) {
+        guard let map else { return }
+        mk_map_remove_source(map, id)
+        wake()
+    }
+
     public func addLayer(_ json: String, before: String? = nil) {
         guard let map else { return }
         mk_map_add_layer(map, json, before)
         wake()
+    }
+
+    public func removeLayer(_ id: String) {
+        guard let map else { return }
+        mk_map_remove_layer(map, id)
+        wake()
+    }
+
+    public func setPaintProperty(_ layer: String, _ name: String, json: String) {
+        guard let map else { return }
+        mk_map_set_paint_property(map, layer, name, json)
+        wake()
+    }
+
+    public func setLayoutProperty(_ layer: String, _ name: String, json: String) {
+        guard let map else { return }
+        mk_map_set_layout_property(map, layer, name, json)
+        wake()
+    }
+
+    public func setFilter(_ layer: String, json: String?) {
+        guard let map else { return }
+        mk_map_set_filter(map, layer, json)
+        wake()
+    }
+
+    public func setLayerVisible(_ layer: String, _ visible: Bool) {
+        guard let map else { return }
+        mk_map_set_layer_visible(map, layer, visible ? 1 : 0)
+        wake()
+    }
+
+    public func project(longitude: Double, latitude: Double) -> CGPoint {
+        guard let map else { return .zero }
+        var x = 0.0
+        var y = 0.0
+        mk_map_project(map, longitude, latitude, &x, &y)
+        return CGPoint(x: x, y: y)
+    }
+
+    public func unproject(x: Double, y: Double) -> (longitude: Double, latitude: Double)? {
+        guard let map else { return nil }
+        var lng = 0.0
+        var lat = 0.0
+        return mk_map_unproject(map, x, y, &lng, &lat) != 0 ? (lng, lat) : nil
+    }
+
+    public func queryFeatures(x: Double, y: Double, layers: [String] = [], radius: Double = 8) -> [[String: Any]] {
+        guard let map else { return [] }
+        let names = (try? JSONSerialization.data(withJSONObject: layers)).flatMap { String(data: $0, encoding: .utf8) }
+        guard let text = mk_map_query_features(map, x, y, names, radius),
+              let data = String(cString: text).data(using: .utf8),
+              let found = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        return found
+    }
+
+    public func clearDiskCache() {
+        guard let map else { return }
+        mk_map_clear_disk_cache(map)
     }
 
     public var camera: Camera {
@@ -222,9 +311,22 @@ public final class MapView: MTKView, MTKViewDelegate {
         wake()
     }
 
+    public func ease(to camera: Camera, duration: Double = -1) {
+        guard let map else { return }
+        var c = mk_camera(lng: camera.longitude, lat: camera.latitude, zoom: camera.zoom, bearing: camera.bearing, pitch: camera.pitch)
+        mk_map_ease_to(map, &c, duration)
+        wake()
+    }
+
     public func setTerrain(source: String, exaggeration: Double = 1, relief: Double = 0.5) {
         guard let map else { return }
         mk_map_set_terrain(map, source, exaggeration, relief)
+        wake()
+    }
+
+    public func clearTerrain() {
+        guard let map else { return }
+        mk_map_clear_terrain(map)
         wake()
     }
 
