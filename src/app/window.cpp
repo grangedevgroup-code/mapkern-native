@@ -25,7 +25,7 @@ struct Window {
   float lastX = 0, lastY = 0;
 };
 
-Window* current = nullptr;
+std::unique_ptr<Window> current;
 
 void init() {
   Window& w = *current;
@@ -112,23 +112,22 @@ void event(const sapp_event* e) {
 }
 
 int runWindow(const MapOptions& options, const WindowOptions& window) {
-  Window w;
-  w.options = options;
-  w.window = window;
-  current = &w;
+  current = std::make_unique<Window>();
+  current->options = options;
+  current->window = window;
   sapp_desc desc{};
   desc.init_cb = init;
   desc.frame_cb = frame;
   desc.cleanup_cb = cleanup;
   desc.event_cb = event;
-  desc.width = w.window.width;
-  desc.height = w.window.height;
+  desc.width = current->window.width;
+  desc.height = current->window.height;
   desc.sample_count = 4;
   desc.high_dpi = true;
-  desc.window_title = w.window.title.c_str();
+  desc.window_title = current->window.title.c_str();
   desc.logger.func = nullptr;
   sapp_run(&desc);
-  current = nullptr;
+  current.reset();
   return 0;
 }
 
