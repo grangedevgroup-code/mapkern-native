@@ -9,6 +9,8 @@
     <Version>0.1.0</Version>
     <Authors>grangedevgroup</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/grangedevgroup-code/mapkern-native</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/grangedevgroup-code/mapkern-native</RepositoryUrl>
     <Description>Native vector map engine with 2D, 3D terrain and globe views.</Description>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
