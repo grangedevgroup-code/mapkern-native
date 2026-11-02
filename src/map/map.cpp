@@ -10,6 +10,7 @@
 #include "map/dem_source.hpp"
 #include "map/raster_source.hpp"
 #include "map/tileset.hpp"
+#include "map/geojson_source.hpp"
 #include "map/vector_source.hpp"
 #include "net/http.hpp"
 #include "render/gpu.hpp"
@@ -95,6 +96,24 @@ MapImpl::~MapImpl() {
 void MapImpl::invalidate() {
   dirty = true;
   if (invalidateCallback) invalidateCallback();
+}
+
+void MapImpl::whenStyleLoaded(std::function<void()> call) {
+  if (styleLoaded) call();
+  else afterStyleLoad.push_back(std::move(call));
+}
+
+void MapImpl::emitClick(double x, double y) {
+  MapEvent e;
+  e.type = "click";
+  e.x = x;
+  e.y = y;
+  if (const auto ground = transform.unprojectLngLat(x, y)) {
+    e.lng = ground->lng;
+    e.lat = ground->lat;
+  }
+  e.message = Value(Object{{"lng", Value(e.lng)}, {"lat", Value(e.lat)}, {"x", Value(x)}, {"y", Value(y)}}).toJson();
+  emit(e);
 }
 
 void MapImpl::emit(const MapEvent& e) {
@@ -249,6 +268,9 @@ void MapImpl::applyStyle(const Value& style, const std::vector<std::string>& ski
   for (auto& [id, s] : sources)
     if (!s->loaded()) s->load();
   if (overlay) ensureDemoTerrain();
+  auto calls = std::move(afterStyleLoad);
+  afterStyleLoad.clear();
+  for (auto& call : calls) call();
   MapEvent e;
   e.type = "styleload";
   e.skipped = problems;
@@ -338,6 +360,7 @@ void MapImpl::addSource(const std::string& id, const Value& spec) {
   if (type == "vector") s = std::make_unique<VectorSource>(id, spec, sourceCtx);
   else if (type == "raster") s = std::make_unique<RasterSource>(id, spec, sourceCtx);
   else if (type == "dem") s = std::make_unique<DemSource>(id, spec, sourceCtx);
+  else if (type == "geojson") s = std::make_unique<GeoJsonSource>(id, spec, sourceCtx);
   else {
     error("unsupported-source", "Source \"" + id + "\" has type " + type + ", which is not drawn yet", id);
     return;
@@ -383,6 +406,13 @@ void MapImpl::removeSource(const std::string& id) {
 }
 
 void MapImpl::addLayer(const Value& spec, const std::string& beforeId) {
+  Object known;
+  for (const auto& [id, s] : sources) known.emplace_back(id, s->spec);
+  const auto issues = validateLayer(spec, "layer " + spec["id"].stringOr(""), Value(std::move(known)));
+  if (!issues.empty()) {
+    error("invalid-layer", formatIssues(issues));
+    return;
+  }
   try {
     auto l = std::make_unique<StyleLayer>(spec);
     if (layer(l->id)) {
@@ -1152,9 +1182,13 @@ void Map::setProjection(bool g) {
 }
 bool Map::globe() const { return impl_->transform.projection() == Projection::Globe; }
 void Map::setTerrain(const std::string& sourceId, double exaggeration, double relief) {
-  impl_->setTerrain(Value(Object{{"source", sourceId}, {"exaggeration", exaggeration}, {"relief", relief}}));
+  impl_->whenStyleLoaded([this, sourceId, exaggeration, relief] {
+    impl_->setTerrain(Value(Object{{"source", sourceId}, {"exaggeration", exaggeration}, {"relief", relief}}));
+  });
 }
-void Map::clearTerrain() { impl_->setTerrain(Value()); }
+void Map::clearTerrain() {
+  impl_->whenStyleLoaded([this] { impl_->setTerrain(Value()); });
+}
 bool Map::terrain() const { return impl_->terrain != nullptr; }
 std::optional<double> Map::elevationAt(double lng, double lat) const {
   if (!impl_->terrain) return std::nullopt;
@@ -1220,50 +1254,81 @@ std::pair<double, double> Map::project(double lng, double lat) const {
   return {p.x, p.y};
 }
 void Map::addSource(const std::string& id, const std::string& spec) {
-  if (auto v = parseJson(spec)) impl_->addSource(id, *v);
-  else impl_->error("invalid-source", "Source JSON could not be read");
-}
-void Map::removeSource(const std::string& id) { impl_->removeSource(id); }
-void Map::addLayer(const std::string& spec, const std::string& beforeId) {
-  if (auto v = parseJson(spec)) impl_->addLayer(*v, beforeId);
-  else impl_->error("invalid-layer", "Layer JSON could not be read");
-}
-void Map::removeLayer(const std::string& id) { impl_->removeLayer(id); }
-void Map::setPaintProperty(const std::string& layerId, const std::string& name, const std::string& value) {
-  auto* l = impl_->layer(layerId);
-  auto v = parseJson(value);
-  if (!l || !v) return;
-  try {
-    l->setPaint(name, *v, impl_->styleRoot["transition"]);
-  } catch (const std::exception& e) {
-    impl_->error("invalid-paint", e.what());
+  auto v = parseJson(spec);
+  if (!v) {
+    impl_->error("invalid-source", "Source JSON could not be read");
+    return;
   }
-  impl_->invalidate();
+  impl_->whenStyleLoaded([this, id, value = *v] { impl_->addSource(id, value); });
+}
+void Map::setGeoJson(const std::string& sourceId, const std::string& json) {
+  impl_->whenStyleLoaded([this, sourceId, json] {
+    const auto found = impl_->sources.find(sourceId);
+    auto* source = found == impl_->sources.end() ? nullptr : dynamic_cast<GeoJsonSource*>(found->second.get());
+    if (source) source->setDataText(json);
+    else impl_->error("invalid-source", "There is no GeoJSON source with id \"" + sourceId + "\"", sourceId);
+  });
+}
+void Map::removeSource(const std::string& id) {
+  impl_->whenStyleLoaded([this, id] { impl_->removeSource(id); });
+}
+void Map::addLayer(const std::string& spec, const std::string& beforeId) {
+  auto v = parseJson(spec);
+  if (!v) {
+    impl_->error("invalid-layer", "Layer JSON could not be read");
+    return;
+  }
+  impl_->whenStyleLoaded([this, beforeId, value = *v] { impl_->addLayer(value, beforeId); });
+}
+void Map::removeLayer(const std::string& id) {
+  impl_->whenStyleLoaded([this, id] { impl_->removeLayer(id); });
+}
+std::string Map::queryRenderedFeatures(double x, double y, const std::vector<std::string>& layers, double radius) {
+  return impl_->queryFeatures(x, y, layers, radius).toJson();
+}
+void Map::setPaintProperty(const std::string& layerId, const std::string& name, const std::string& value) {
+  impl_->whenStyleLoaded([this, layerId, name, value] {
+    auto* l = impl_->layer(layerId);
+    auto v = parseJson(value);
+    if (!l || !v) return;
+    try {
+      l->setPaint(name, *v, impl_->styleRoot["transition"]);
+    } catch (const std::exception& e) {
+      impl_->error("invalid-paint", e.what());
+    }
+    impl_->invalidate();
+  });
 }
 void Map::setLayoutProperty(const std::string& layerId, const std::string& name, const std::string& value) {
-  auto* l = impl_->layer(layerId);
-  auto v = parseJson(value);
-  if (!l || !v) return;
-  try {
-    l->setLayout(name, *v);
-  } catch (const std::exception& e) {
-    impl_->error("invalid-layout", e.what());
-  }
-  impl_->layersChanged();
+  impl_->whenStyleLoaded([this, layerId, name, value] {
+    auto* l = impl_->layer(layerId);
+    auto v = parseJson(value);
+    if (!l || !v) return;
+    try {
+      l->setLayout(name, *v);
+    } catch (const std::exception& e) {
+      impl_->error("invalid-layout", e.what());
+    }
+    impl_->layersChanged();
+  });
 }
 void Map::setFilter(const std::string& layerId, const std::string& filter) {
-  auto* l = impl_->layer(layerId);
-  if (!l) return;
-  try {
-    l->setFilter(filter.empty() ? Value() : parseJson(filter).value_or(Value()));
-  } catch (const std::exception& e) {
-    impl_->error("invalid-filter", e.what());
-  }
-  impl_->layersChanged();
+  impl_->whenStyleLoaded([this, layerId, filter] {
+    auto* l = impl_->layer(layerId);
+    if (!l) return;
+    try {
+      l->setFilter(filter.empty() ? Value() : parseJson(filter).value_or(Value()));
+    } catch (const std::exception& e) {
+      impl_->error("invalid-filter", e.what());
+    }
+    impl_->layersChanged();
+  });
 }
 void Map::setLayerVisible(const std::string& layerId, bool visible) {
-  if (auto* l = impl_->layer(layerId)) l->setVisible(visible);
-  impl_->layersChanged();
+  impl_->whenStyleLoaded([this, layerId, visible] {
+    if (auto* l = impl_->layer(layerId)) l->setVisible(visible);
+    impl_->layersChanged();
+  });
 }
 std::vector<std::string> Map::layerIds() const {
   std::vector<std::string> ids;
