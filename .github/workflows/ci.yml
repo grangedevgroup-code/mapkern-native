@@ -57,13 +57,20 @@ jobs:
           cmake -S examples/hello -B build-hello -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFETCHCONTENT_SOURCE_DIR_MAPKERN=${{ github.workspace }}
           cmake --build build-hello
       - name: Package
+        shell: bash
+        env:
+          PACKAGE: mapkern-native-${{ matrix.package }}
         run: |
-          cmake --install build --prefix ${{ runner.temp }}/${{ matrix.package }}/mapkern-native --strip
-          cmake -E chdir ${{ runner.temp }}/${{ matrix.package }} cmake -E tar cf ${{ github.workspace }}/${{ matrix.package }}.zip --format=zip mapkern-native
+          cmake --install build --prefix "$RUNNER_TEMP/package/mapkern-native" --strip
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cmake -E chdir "$RUNNER_TEMP/package" cmake -E tar cf "$GITHUB_WORKSPACE/$PACKAGE.zip" --format=zip mapkern-native
+          else
+            tar -C "$RUNNER_TEMP/package" -czf "$PACKAGE.tar.gz" mapkern-native
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop-${{ matrix.package }}
-          path: ${{ matrix.package }}.zip
+          path: mapkern-native-${{ matrix.package }}.*
 
   android:
     name: Android
