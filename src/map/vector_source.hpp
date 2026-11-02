@@ -41,6 +41,17 @@ struct VectorTileData {
   SharedBytes raw;
 };
 
+class VectorDataLoader : public TileLoader<VectorTileData> {
+ public:
+  bool needsUpload(const VectorTileData& data) const override { return !data.uploaded; }
+  void upload(VectorTileData& data) override;
+  void release(VectorTileData& data) override;
+  size_t byteSize(const VectorTileData& data) const override;
+  bool emptyIsFinal() const override { return true; }
+};
+
+std::shared_ptr<VectorTileData> vectorTileData(VectorTileResult result, SharedBytes raw);
+
 class VectorTileLoader;
 
 class VectorSource : public Source {
@@ -71,12 +82,15 @@ class VectorSource : public Source {
   std::unique_ptr<TileManager<VectorTileData>> manager;
   std::optional<TileSet> tileSet;
 
+ protected:
+  VectorSource(std::string id, std::string type, Value spec, SourceContext& ctx);
+  std::shared_ptr<const std::vector<LayerProgram>> programs_;
+  CancelToken lifetime_;
+
  private:
   void start(TileSet set);
-  std::shared_ptr<const std::vector<LayerProgram>> programs_;
   std::string signature_;
   std::shared_ptr<VectorTileLoader> loader_;
-  CancelToken lifetime_;
 };
 
 }
