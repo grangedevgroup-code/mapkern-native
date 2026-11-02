@@ -83,6 +83,10 @@ struct MapEvent {
   std::string message;
   std::string sourceId;
   std::vector<std::string> skipped;
+  double lng = 0;
+  double lat = 0;
+  double x = 0;
+  double y = 0;
 };
 
 struct MapStats {
@@ -154,6 +158,7 @@ class Map {
   std::pair<double, double> project(double lng, double lat) const;
 
   void addSource(const std::string& id, const std::string& specJson);
+  void setGeoJson(const std::string& sourceId, const std::string& json);
   void removeSource(const std::string& id);
   void addLayer(const std::string& specJson, const std::string& beforeId = "");
   void removeLayer(const std::string& id);
@@ -162,6 +167,7 @@ class Map {
   void setFilter(const std::string& layerId, const std::string& filterJson);
   void setLayerVisible(const std::string& layerId, bool visible);
   std::vector<std::string> layerIds() const;
+  std::string queryRenderedFeatures(double x, double y, const std::vector<std::string>& layers = {}, double radius = 8);
   std::string attribution() const;
 
   void setOffline(bool offline);
