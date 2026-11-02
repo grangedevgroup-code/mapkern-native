@@ -116,6 +116,7 @@ class Map {
   void setInvalidateCallback(std::function<void()> callback);
 
   void resize(double width, double height, double pixelRatio);
+  void setControlInsets(double top, double right, double bottom, double left);
   void setStyle(const std::string& urlOrJson);
   std::string styleJson() const;
   bool isStyleLoaded() const;
