@@ -172,6 +172,7 @@ void Gestures::up(int id, double x, double y, double time, bool cancelled) {
     mode_ = Mode{};
     if (cancelled || moved) return;
     detectDoubleTap(time, x, y);
+    if (host_.click) host_.click(x, y);
     return;
   }
   if (mode_.kind == Kind::Pan && mode_.pointer == id) {
