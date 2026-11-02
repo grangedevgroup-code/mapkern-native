@@ -9,6 +9,9 @@
     <Version>0.1.0</Version>
     <Authors>grangedevgroup</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Description>WinForms map control for Mapkern Native.</Description>
+    <PackageProjectUrl>https://github.com/grangedevgroup-code/mapkern-native</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/grangedevgroup-code/mapkern-native</RepositoryUrl>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
