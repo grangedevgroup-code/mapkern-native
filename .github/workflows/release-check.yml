@@ -1,0 +1,83 @@
+name: Release check
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to check
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  swift:
+    name: Swift package
+    runs-on: macos-15
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Use the package from the release
+        run: |
+          mkdir -p consumer/Sources/Consumer
+          cd consumer
+          cat > Package.swift <<EOF
+          // swift-tools-version: 6.0
+          import PackageDescription
+
+          let package = Package(
+              name: "Consumer",
+              platforms: [.iOS(.v15), .macOS(.v13)],
+              dependencies: [.package(url: "https://github.com/${GITHUB_REPOSITORY}", exact: "${TAG#v}")],
+              targets: [.executableTarget(name: "Consumer", dependencies: [.product(name: "Mapkern", package: "mapkern-native")])],
+              swiftLanguageModes: [.v5]
+          )
+          EOF
+          cat > Sources/Consumer/main.swift <<EOF
+          import Mapkern
+          import SwiftUI
+
+          struct ContentView: View {
+              var body: some View {
+                  MapkernMap(options: MapOptions(longitude: -122.33, latitude: 47.61, zoom: 11, controls: true))
+                      .ignoresSafeArea()
+              }
+          }
+
+          print(MapOptions(longitude: -122.33, latitude: 47.61, zoom: 11, controls: true).zoom)
+          EOF
+          swift build
+          swift run Consumer
+          xcodebuild -scheme Consumer -destination 'generic/platform=iOS' -quiet build
+
+  cmake:
+    name: CMake FetchContent
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+      - name: Install packages
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libcurl4-openssl-dev libgl-dev libegl-dev libx11-dev libxi-dev libxcursor-dev
+      - name: Build the hello example from the release archive
+        run: |
+          cmake -S examples/hello -B build-hello -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-hello
+
+  android:
+    name: Android AAR
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download the release assets
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern mapkern.aar --pattern mapkern-demo.apk
+      - name: Check the AAR carries every library
+        run: |
+          unzip -l mapkern.aar | grep -E "jni/(arm64-v8a|armeabi-v7a|x86_64)/libmapkern-jni.so"
+          test "$(unzip -l mapkern.aar | grep -cE 'jni/.*/libmapkern-jni.so')" = "3"
+          test -s mapkern-demo.apk
