@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace Mapkern;
 
@@ -17,6 +20,22 @@ public sealed class MapEventArgs : EventArgs
     public string SourceId { get; }
 }
 
+public sealed class MapClickEventArgs : EventArgs
+{
+    public MapClickEventArgs(double longitude, double latitude, double x, double y)
+    {
+        Longitude = longitude;
+        Latitude = latitude;
+        X = x;
+        Y = y;
+    }
+
+    public double Longitude { get; }
+    public double Latitude { get; }
+    public double X { get; }
+    public double Y { get; }
+}
+
 public sealed class MapView : IDisposable
 {
     private IntPtr view;
@@ -30,13 +49,21 @@ public sealed class MapView : IDisposable
         map = Native.ViewMap(view);
         invalidateFn = _ => Invalidated?.Invoke(this, EventArgs.Empty);
         eventFn = (_, type, message, source) =>
-            Event?.Invoke(this, new MapEventArgs(Utf8(type), Utf8(message), Utf8(source)));
+        {
+            var args = new MapEventArgs(Utf8(type), Utf8(message), Utf8(source));
+            Event?.Invoke(this, args);
+            if (args.Type != "click") return;
+            using var doc = JsonDocument.Parse(args.Message);
+            var o = doc.RootElement;
+            Click?.Invoke(this, new MapClickEventArgs(o.GetProperty("lng").GetDouble(), o.GetProperty("lat").GetDouble(), o.GetProperty("x").GetDouble(), o.GetProperty("y").GetDouble()));
+        };
         Native.SetInvalidate(map, Marshal.GetFunctionPointerForDelegate(invalidateFn), IntPtr.Zero);
         Native.SetEvents(map, Marshal.GetFunctionPointerForDelegate(eventFn), IntPtr.Zero);
     }
 
     public event EventHandler? Invalidated;
     public event EventHandler<MapEventArgs>? Event;
+    public event EventHandler<MapClickEventArgs>? Click;
 
     public static MapView? CreateForWindow(IntPtr hwnd, MapOptions options, double pixelRatio)
     {
@@ -80,6 +107,21 @@ public sealed class MapView : IDisposable
 
     public void SetStyle(string urlOrJson) => Native.SetStyle(map, urlOrJson);
     public void AddSource(string id, string specJson) => Native.AddSource(map, id, specJson);
+    public void SetGeoJson(string sourceId, string json) => Native.SetGeoJson(map, sourceId, json);
+    public void SetLayoutProperty(string layerId, string name, string valueJson) => Native.SetLayoutProperty(map, layerId, name, valueJson);
+    public void SetFilter(string layerId, string? filterJson) => Native.SetFilter(map, layerId, filterJson);
+
+    public (double X, double Y) Project(double lng, double lat)
+    {
+        Native.Project(map, lng, lat, out var x, out var y);
+        return (x, y);
+    }
+
+    public string QueryFeatures(double x, double y, IEnumerable<string>? layers = null, double radius = 8)
+    {
+        var names = layers is null ? null : "[" + string.Join(",", layers.Select(l => "\"" + JsonEncodedText.Encode(l) + "\"")) + "]";
+        return Utf8(Native.QueryFeatures(map, x, y, names, radius));
+    }
     public void RemoveSource(string id) => Native.RemoveSource(map, id);
     public void AddLayer(string specJson, string? beforeId = null) => Native.AddLayer(map, specJson, beforeId);
     public void RemoveLayer(string id) => Native.RemoveLayer(map, id);
