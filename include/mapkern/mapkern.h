@@ -90,6 +90,7 @@ MK_API void mk_map_resize(mk_map* map, double width, double height, double pixel
 MK_API void mk_map_set_style(mk_map* map, const char* url_or_json);
 MK_API int mk_map_style_loaded(const mk_map* map);
 MK_API void mk_map_add_source(mk_map* map, const char* id, const char* spec_json);
+MK_API void mk_map_set_geojson(mk_map* map, const char* source_id, const char* json);
 MK_API void mk_map_remove_source(mk_map* map, const char* id);
 MK_API void mk_map_add_layer(mk_map* map, const char* spec_json, const char* before_id);
 MK_API void mk_map_remove_layer(mk_map* map, const char* id);
@@ -98,6 +99,7 @@ MK_API void mk_map_set_layout_property(mk_map* map, const char* layer_id, const 
 MK_API void mk_map_set_filter(mk_map* map, const char* layer_id, const char* filter_json);
 MK_API void mk_map_set_layer_visible(mk_map* map, const char* layer_id, int visible);
 MK_API size_t mk_map_attribution(const mk_map* map, char* buffer, size_t size);
+MK_API const char* mk_map_query_features(mk_map* map, double x, double y, const char* layers_json, double radius);
 
 MK_API void mk_map_get_camera(const mk_map* map, mk_camera* camera);
 MK_API void mk_map_jump_to(mk_map* map, const mk_camera* camera);
