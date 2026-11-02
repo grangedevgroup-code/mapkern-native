@@ -25,5 +25,5 @@ Thumbs.db
 *.jks
 *.keystore
 /platform/android/**/.cxx/
-/platform/apple/Mapkern.xcframework/
+/platform/apple/CMapkern.xcframework/
 /platform/apple/build/
