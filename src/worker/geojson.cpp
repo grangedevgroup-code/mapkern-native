@@ -350,7 +350,8 @@ void readPolygon(const Value& polygon, std::vector<GeoJsonPart>& parts) {
     auto ring = projected(rings[r], 3);
     if (ring) closeRing(*ring);
     const double area = ring && ring->size() >= 12 ? signedArea(*ring) : 0;
-    if (!ring || area == 0) {
+    const double length = ring ? pathLength(*ring) : 0;
+    if (!ring || std::abs(area) <= 1e-12 * length * length) {
       if (outer) return;
       continue;
     }
