@@ -22,6 +22,8 @@ struct Rig {
   Transform t;
   int zooms = 0;
   double zoomDelta = 0;
+  int clicks = 0;
+  double clickX = 0, clickY = 0;
   Gestures g;
   Rig(bool globe, double zoom)
       : g(t, GestureHost{[this](double x, double y) -> std::optional<Point3> {
@@ -33,6 +35,11 @@ struct Rig {
                          [this](double d, double, double) {
                            zooms++;
                            zoomDelta += d;
+                         },
+                         [this](double x, double y) {
+                           clicks++;
+                           clickX = x;
+                           clickY = y;
                          }}) {
     t.resize(800, 1236);
     t.setZoomRange(-2, 22);
@@ -273,4 +280,39 @@ TEST("gestures: a flat drag that starts above the horizon grabs the map once the
     const ScreenPoint p = r.t.project((*under)[0], (*under)[1]);
     EXPECT(std::hypot(p.x - 400, p.y - (top + 120)) < 1.5);
   }
+}
+
+TEST("gestures: a tap fires a click where the finger lifted") {
+  Rig r(false, 12);
+  r.g.down(1, 300, 400, 0);
+  r.g.up(1, 301, 401, 80, false);
+  EXPECT(r.clicks == 1);
+  EXPECT(r.clickX == 301);
+  EXPECT(r.clickY == 401);
+}
+
+TEST("gestures: a drag, a cancelled press and a pinch do not fire a click") {
+  Rig r(false, 12);
+  r.drag(1, 300, 400, 420, 500, 0);
+  r.g.up(1, 420, 500, 400, false);
+  EXPECT(r.clicks == 0);
+  r.g.down(2, 300, 400, 1000);
+  r.g.up(2, 300, 400, 1050, true);
+  EXPECT(r.clicks == 0);
+  r.g.down(3, 300, 400, 2000);
+  r.g.down(4, 500, 400, 2010);
+  r.g.move(4, 560, 400, 2030);
+  r.g.up(3, 300, 400, 2100, false);
+  r.g.up(4, 560, 400, 2110, false);
+  EXPECT(r.clicks == 0);
+}
+
+TEST("gestures: both taps of a double tap are clicks, and the zoom still happens") {
+  Rig r(false, 12);
+  r.g.down(1, 300, 400, 0);
+  r.g.up(1, 300, 400, 50, false);
+  r.g.down(1, 300, 400, 150);
+  r.g.up(1, 300, 400, 200, false);
+  EXPECT(r.clicks == 2);
+  EXPECT(r.zooms == 1);
 }
