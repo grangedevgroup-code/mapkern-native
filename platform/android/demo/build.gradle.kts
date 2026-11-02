@@ -5,6 +5,7 @@ plugins {
 android {
     namespace = "com.grangedevgroup.mapkern.demo"
     compileSdk = 37
+    ndkVersion = "30.0.16248370"
 
     defaultConfig {
         applicationId = "com.grangedevgroup.mapkern.nativedemo"
