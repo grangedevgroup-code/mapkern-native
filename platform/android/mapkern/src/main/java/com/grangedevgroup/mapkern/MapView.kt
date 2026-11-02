@@ -118,24 +118,16 @@ class MapView @JvmOverloads constructor(
     }
 
     private fun updateControlInsets(insets: WindowInsets) {
-        val bars = systemBars(insets)
+        if (Build.VERSION.SDK_INT < 30) return
+        val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
         val at = IntArray(2)
         getLocationInWindow(at)
         val root = rootView
-        val left = (bars[0] - at[0]).coerceAtLeast(0) / density
-        val top = (bars[1] - at[1]).coerceAtLeast(0) / density
-        val right = (at[0] + width - (root.width - bars[2])).coerceAtLeast(0) / density
-        val bottom = (at[1] + height - (root.height - bars[3])).coerceAtLeast(0) / density
+        val left = (bars.left - at[0]).coerceAtLeast(0) / density
+        val top = (bars.top - at[1]).coerceAtLeast(0) / density
+        val right = (at[0] + width - (root.width - bars.right)).coerceAtLeast(0) / density
+        val bottom = (at[1] + height - (root.height - bars.bottom)).coerceAtLeast(0) / density
         queueEvent { if (handle != 0L) nativeSetControlInsets(handle, top, right, bottom, left) }
-    }
-
-    private fun systemBars(insets: WindowInsets): IntArray {
-        if (Build.VERSION.SDK_INT >= 30) {
-            val i = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-            return intArrayOf(i.left, i.top, i.right, i.bottom)
-        }
-        @Suppress("DEPRECATION")
-        return intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
     }
 
     private fun updateReachability() {
