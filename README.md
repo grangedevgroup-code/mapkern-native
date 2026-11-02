@@ -2,6 +2,13 @@
 
 Mapkern Native is the C++ version of [Mapkern GL JS](https://github.com/grangedevgroup-code/mapkern-gl-js). It draws the same vector and raster maps, as a flat map, a tilted 3D terrain view or a globe, inside native apps on Android and Fire tablets, iOS, macOS, Windows and Linux. Styles, tile sources and the demo controls work the same way they do in the browser version.
 
+<p>
+  <img src="assets/screenshot-terrain.webp" alt="Mount Rainier in 3D, tilted 60 degrees" width="49%">
+  <img src="assets/screenshot-globe.webp" alt="The world as a globe" width="49%">
+</p>
+
+<sub>Map data © OpenStreetMap contributors, OpenFreeMap, OpenMapTiles and Mapterhorn</sub>
+
 The engine is one C++20 library. It talks to the GPU through sokol_gfx, so it uses Direct3D 11 on Windows, Metal on Apple devices, OpenGL ES 3 on Android and OpenGL on Linux. On top of it sit a C API and thin SDKs: Kotlin for Android, Swift for iOS and macOS, and C# for Windows.
 
 ## Build and run
