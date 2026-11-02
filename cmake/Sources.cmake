@@ -27,6 +27,7 @@ set(MAPKERN_CORE_SOURCES
   src/text/glyphs.cpp
   src/ui/canvas.cpp
   src/worker/buckets.cpp
+  src/worker/geojson.cpp
   src/worker/symbols.cpp
   src/worker/vector_task.cpp
 )
@@ -37,6 +38,8 @@ set(MAPKERN_RENDER_SOURCES
   src/map/dem_source.cpp
   src/terrain/terrain.cpp
   src/map/vector_source.cpp
+  src/map/geojson_source.cpp
+  src/map/query.cpp
   src/render/gpu.cpp
   src/render/paint_table.cpp
   src/render/painter.cpp
