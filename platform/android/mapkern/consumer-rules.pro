@@ -4,4 +4,5 @@
     native <methods>;
     void requestRender();
     void onNativeEvent(java.lang.String, java.lang.String);
+    void onNativeProgress(long, long, long);
 }
