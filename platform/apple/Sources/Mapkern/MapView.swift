@@ -337,6 +337,14 @@ public final class MapView: MTKView, MTKViewDelegate {
     }
 
     #if os(iOS)
+    public override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        guard let map else { return }
+        let i = safeAreaInsets
+        mk_map_set_control_insets(map, Double(i.top), Double(i.right), Double(i.bottom), Double(i.left))
+        wake()
+    }
+
     private func send(_ touches: Set<UITouch>, _ action: Int) {
         guard let map else { return }
         for touch in touches {
