@@ -692,6 +692,15 @@ bool MapImpl::renderTarget(const FrameTarget& target) {
     f.worst.back() = {start, lastFrameMs, tickMs, uploadMs, ps.drapeMs, ps.labelMs, draws};
     std::sort(f.worst.begin(), f.worst.end(), [](const SlowFrame& a, const SlowFrame& b) { return a.ms > b.ms; });
   }
+  if (gestures.touching()) {
+    f.touchFrames++;
+    if (lastFrameStart > 0 && start - lastFrameStart < 250) {
+      const double gap = start - lastFrameStart;
+      f.touchMs += gap;
+      f.touchGapMax = std::max(f.touchGapMax, gap);
+      f.touchGaps[gap < 12 ? 0 : gap < 17 ? 1 : gap < 25 ? 2 : gap < 34 ? 3 : gap < 50 ? 4 : 5]++;
+    }
+  }
   if (lastFrameStart > 0 && start - lastFrameStart < 250) {
     const double gap = start - lastFrameStart;
     f.intervals++;
@@ -821,6 +830,8 @@ std::string MapImpl::diagnosticsJson() {
   const double frames = static_cast<double>(f.frames);
   Array buckets;
   for (uint64_t b : f.buckets) buckets.emplace_back(static_cast<double>(b));
+  Array touchGaps;
+  for (uint64_t b : f.touchGaps) touchGaps.emplace_back(static_cast<double>(b));
   Array worst;
   for (const SlowFrame& w : f.worst)
     if (w.ms > 0)
@@ -855,6 +866,10 @@ std::string MapImpl::diagnosticsJson() {
                {"cameraStepMaxPct", r2(f.cameraStepMax * 100)},
                {"turnMaxDeg", r2(f.turnMax)},
                {"bigTurns", static_cast<double>(f.bigTurns)},
+               {"touchFrames", static_cast<double>(f.touchFrames)},
+               {"touchMs", r2(f.touchMs)},
+               {"touchGapMax", r2(f.touchGapMax)},
+               {"touchGaps", Value(std::move(touchGaps))},
                {"worst", Value(std::move(worst))}};
   static const char* kinds[] = {"style", "source", "tile", "glyphs", "sprite", "image"};
   Object requests;
