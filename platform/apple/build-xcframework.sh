@@ -4,7 +4,7 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
 work="$here/build"
-out="$here/Mapkern.xcframework"
+out="$here/CMapkern.xcframework"
 rm -rf "$out" "$work/headers"
 mkdir -p "$work/headers"
 cp "$root/include/mapkern/mapkern.h" "$here/include/module.modulemap" "$work/headers/"
