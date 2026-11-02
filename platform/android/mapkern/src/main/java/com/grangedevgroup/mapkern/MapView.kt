@@ -8,11 +8,13 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.opengl.GLSurfaceView
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
 import android.view.MotionEvent
+import android.view.WindowInsets
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -103,6 +105,37 @@ class MapView @JvmOverloads constructor(
         }
         updateReachability()
         host?.application?.registerActivityLifecycleCallbacks(lifecycle)
+    }
+
+    override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
+        updateControlInsets(insets)
+        return super.onApplyWindowInsets(insets)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        rootWindowInsets?.let { updateControlInsets(it) }
+    }
+
+    private fun updateControlInsets(insets: WindowInsets) {
+        val bars = systemBars(insets)
+        val at = IntArray(2)
+        getLocationInWindow(at)
+        val root = rootView
+        val left = (bars[0] - at[0]).coerceAtLeast(0) / density
+        val top = (bars[1] - at[1]).coerceAtLeast(0) / density
+        val right = (at[0] + width - (root.width - bars[2])).coerceAtLeast(0) / density
+        val bottom = (at[1] + height - (root.height - bars[3])).coerceAtLeast(0) / density
+        queueEvent { if (handle != 0L) nativeSetControlInsets(handle, top, right, bottom, left) }
+    }
+
+    private fun systemBars(insets: WindowInsets): IntArray {
+        if (Build.VERSION.SDK_INT >= 30) {
+            val i = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+            return intArrayOf(i.left, i.top, i.right, i.bottom)
+        }
+        @Suppress("DEPRECATION")
+        return intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
     }
 
     private fun updateReachability() {
@@ -288,6 +321,7 @@ class MapView @JvmOverloads constructor(
     private external fun nativeUnproject(handle: Long, x: Double, y: Double): DoubleArray?
     private external fun nativeQueryFeatures(handle: Long, x: Double, y: Double, layers: Array<String>, radius: Double): ByteArray
     private external fun nativeClearDiskCache(handle: Long)
+    private external fun nativeSetControlInsets(handle: Long, top: Double, right: Double, bottom: Double, left: Double)
     private external fun nativeDownloadRegion(handle: Long, west: Double, south: Double, east: Double, north: Double, minZoom: Int, maxZoom: Int, request: Long)
     private external fun nativeDestroy(handle: Long)
     private external fun nativeSurfaceCreated(handle: Long)
