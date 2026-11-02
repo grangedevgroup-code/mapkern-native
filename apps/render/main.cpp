@@ -2,6 +2,8 @@
 #include <array>
 #include <chrono>
 #include <cstdio>
+#include <fstream>
+#include <iterator>
 #include <cstdlib>
 #include <string>
 #include <thread>
@@ -37,6 +39,10 @@ struct Args {
   std::vector<Action> actions;
   std::string trace;
   std::string framesDir;
+  std::string addFile;
+  std::string setGeoJsonId;
+  std::string setGeoJsonFile;
+  std::vector<std::pair<double, double>> queries;
 };
 
 const char* kDem = R"j({"type":"dem","tiles":["https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"],"tileSize":512,"maxZoom":12,"encoding":"terrarium","attribution":"Mapterhorn"})j";
@@ -92,6 +98,15 @@ int main(int argc, char** argv) {
     else if (s == "--frames") a.framesDir = r.next();
     else if (s == "--mouse") a.options.touchControls = false;
     else if (s == "--view") a.options.view = r.next();
+    else if (s == "--add") a.addFile = r.next();
+    else if (s == "--set-geojson") {
+      a.setGeoJsonId = r.next();
+      a.setGeoJsonFile = r.next();
+    } else if (s == "--query") {
+      const double qx = r.number();
+      const double qy = r.number();
+      a.queries.emplace_back(qx, qy);
+    }
   }
   a.options.pixelRatio = a.ratio;
   const int pw = static_cast<int>(a.width * a.ratio), ph = static_cast<int>(a.height * a.ratio);
@@ -121,7 +136,20 @@ int main(int argc, char** argv) {
     if (e.type == "error") std::fprintf(stderr, "error: %s\n", e.message.c_str());
     if (e.type == "styleload")
       for (const auto& s : e.skipped) std::fprintf(stderr, "skipped: %s\n", s.c_str());
+    if (e.type == "click") std::printf("click %s\n", e.message.c_str());
   });
+  if (!a.addFile.empty()) {
+    std::ifstream in(a.addFile, std::ios::binary);
+    const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    if (const auto added = mapkern::parseJson(text)) {
+      if ((*added)["sources"].isObject())
+        for (const auto& [id, spec] : (*added)["sources"].asObject()) map.addSource(id, spec.toJson());
+      if ((*added)["layers"].isArray())
+        for (const auto& layer : (*added)["layers"].asArray()) map.addLayer(layer.toJson());
+    } else {
+      std::fprintf(stderr, "could not read %s\n", a.addFile.c_str());
+    }
+  }
   auto& impl = map.impl();
   impl.initGraphicsNative(env);
   map.resize(a.width, a.height, a.ratio);
@@ -237,6 +265,13 @@ int main(int argc, char** argv) {
     if (idle && sourcesReady && step == 0) {
       if (idleSince == 0) idleSince = now;
       if (now - idleSince > a.settleMs) {
+        if (!a.setGeoJsonFile.empty()) {
+          std::ifstream in(a.setGeoJsonFile, std::ios::binary);
+          map.setGeoJson(a.setGeoJsonId, std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()));
+          a.setGeoJsonFile.clear();
+          idleSince = 0;
+          continue;
+        }
         if (static_cast<size_t>(action + 1) >= a.actions.size()) break;
         action++;
         const auto& d = a.actions[static_cast<size_t>(action)];
@@ -256,6 +291,7 @@ int main(int argc, char** argv) {
   }
   if (trace) std::fclose(trace);
   impl.renderTarget(target);
+  for (const auto& [qx, qy] : a.queries) std::printf("query %g %g %s\n", qx, qy, map.queryRenderedFeatures(qx, qy).c_str());
   const auto stats = map.stats();
   std::printf("frames=%d tiles=%d loading=%d blank=%.3f draws=%d frame=%.2fms elapsed=%.0fms\n", frames, stats.tiles, stats.loading,
               stats.blank, stats.drawCalls, stats.frameMs, mapkern::nowMs() - start);
