@@ -832,6 +832,10 @@ void MapImpl::updateOverlay() {
   s.width = transform.width;
   s.height = transform.height;
   s.pixelRatio = pixelRatio;
+  s.insetTop = controlInsets[0];
+  s.insetRight = controlInsets[1];
+  s.insetBottom = controlInsets[2];
+  s.insetLeft = controlInsets[3];
   s.zoom = transform.zoom();
   s.minZoom = transform.lowestZoom();
   s.maxZoom = transform.maxZoom;
@@ -1160,6 +1164,10 @@ bool Map::render(const RenderSurface& s) { return impl_->render(s); }
 bool Map::needsRender() const { return impl_->needsRender(); }
 void Map::setInvalidateCallback(std::function<void()> cb) { impl_->invalidateCallback = std::move(cb); }
 void Map::resize(double w, double h, double r) { impl_->resize(w, h, r); }
+void Map::setControlInsets(double top, double right, double bottom, double left) {
+  impl_->controlInsets = {top, right, bottom, left};
+  impl_->invalidate();
+}
 void Map::setStyle(const std::string& s) { impl_->setStyle(s); }
 std::string Map::styleJson() const { return impl_->styleJson().toJson(); }
 bool Map::isStyleLoaded() const { return impl_->styleLoaded; }
