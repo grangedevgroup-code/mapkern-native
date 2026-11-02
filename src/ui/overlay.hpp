@@ -18,6 +18,7 @@ struct Basemap {
 
 struct OverlayState {
   double width = 0, height = 0, pixelRatio = 1;
+  double insetTop = 0, insetRight = 0, insetBottom = 0, insetLeft = 0;
   double zoom = 0, minZoom = 0, maxZoom = 22, bearing = 0, pitch = 0;
   std::string view = "terrain";
   std::string attribution;
