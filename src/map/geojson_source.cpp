@@ -82,6 +82,8 @@ GeoJsonOptions GeoJsonSource::options() const {
 
 void GeoJsonSource::load() {
   started_ = true;
+  if (spec["cluster"].boolOr(false) && ctx_.error)
+    ctx_.error({"unsupported-source", "GeoJSON source \"" + id + "\" asks for clustering, which isn't supported yet, so every point shows", id});
   sync();
 }
 
