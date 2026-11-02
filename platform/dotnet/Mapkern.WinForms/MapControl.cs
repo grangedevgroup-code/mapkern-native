@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -15,6 +16,7 @@ public partial class MapControl : Control
 
     private readonly MapOptions options;
     private readonly Timer timer = new() { Interval = 15 };
+    private readonly List<Action<MapView>> whenReady = new();
     private MapView? view;
     private bool mouseDown;
 
@@ -32,6 +34,13 @@ public partial class MapControl : Control
     public MapView? Map => view;
 
     public event EventHandler<MapEventArgs>? MapEvent;
+    public event EventHandler<MapClickEventArgs>? MapClick;
+
+    public void WhenReady(Action<MapView> action)
+    {
+        if (view is not null) action(view);
+        else whenReady.Add(action);
+    }
 
     private double Ratio => DeviceDpi / 96.0;
 
@@ -49,6 +58,12 @@ public partial class MapControl : Control
         {
             if (IsHandleCreated && !IsDisposed) BeginInvoke(new Action(() => MapEvent?.Invoke(this, args)));
         };
+        view.Click += (_, args) =>
+        {
+            if (IsHandleCreated && !IsDisposed) BeginInvoke(new Action(() => MapClick?.Invoke(this, args)));
+        };
+        foreach (var action in whenReady) action(view);
+        whenReady.Clear();
         StartFrames();
     }
 
