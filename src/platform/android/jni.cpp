@@ -4,6 +4,7 @@
 #include <jni.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -195,6 +196,7 @@ struct Handle {
   jobject view = nullptr;
   jmethodID requestRender = nullptr;
   jmethodID onEvent = nullptr;
+  jmethodID onProgress = nullptr;
   bool graphics = false;
   GpuTimer gpu;
 };
@@ -207,6 +209,16 @@ jbyteArray bytes(JNIEnv* env, const std::string& s) {
 
 Handle* handle(jlong ptr) { return reinterpret_cast<Handle*>(ptr); }
 
+}
+
+static mapkern::CameraOptions cameraOf(double lng, double lat, double zoom, double bearing, double pitch) {
+  mapkern::CameraOptions c;
+  if (!std::isnan(lng)) c.lng = lng;
+  if (!std::isnan(lat)) c.lat = lat;
+  if (!std::isnan(zoom)) c.zoom = zoom;
+  if (!std::isnan(bearing)) c.bearing = bearing;
+  if (!std::isnan(pitch)) c.pitch = pitch;
+  return c;
 }
 
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* v, void*) {
@@ -230,7 +242,8 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* v, void*) {
 
 extern "C" JNIEXPORT jlong JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeCreate(JNIEnv* env, jobject view, jstring style, jstring cache,
                                                                                         jdouble lng, jdouble lat, jdouble zoom, jboolean globe,
-                                                                                        jdouble ratio, jboolean controls) {
+                                                                                        jdouble ratio, jboolean controls, jdouble bearing,
+                                                                                        jdouble pitch) {
   auto* h = new Handle();
   mapkern::MapOptions o;
   o.style = str(env, style);
@@ -238,6 +251,8 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_grangedevgroup_mapkern_MapView_nativ
   o.lng = lng;
   o.lat = lat;
   o.zoom = zoom;
+  o.bearing = bearing;
+  o.pitch = pitch;
   o.globe = globe;
   o.pixelRatio = ratio;
   o.controls = controls;
@@ -248,6 +263,7 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_grangedevgroup_mapkern_MapView_nativ
   jclass cls = env->GetObjectClass(view);
   h->requestRender = env->GetMethodID(cls, "requestRender", "()V");
   h->onEvent = env->GetMethodID(cls, "onNativeEvent", "(Ljava/lang/String;Ljava/lang/String;)V");
+  h->onProgress = env->GetMethodID(cls, "onNativeProgress", "(JJJ)V");
   jobject ref = h->view;
   jmethodID rr = h->requestRender;
   h->map->setInvalidateCallback([ref, rr] {
@@ -372,13 +388,109 @@ extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_native
 
 extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeFlyTo(JNIEnv*, jobject, jlong ptr, jdouble lng, jdouble lat, jdouble zoom,
                                                                                       jdouble bearing, jdouble pitch) {
-  mapkern::CameraOptions c;
-  c.lng = lng;
-  c.lat = lat;
-  c.zoom = zoom;
-  c.bearing = bearing;
-  c.pitch = pitch;
-  handle(ptr)->map->flyTo(c);
+  handle(ptr)->map->flyTo(cameraOf(lng, lat, zoom, bearing, pitch));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeEaseTo(JNIEnv*, jobject, jlong ptr, jdouble lng, jdouble lat, jdouble zoom,
+                                                                                       jdouble bearing, jdouble pitch) {
+  handle(ptr)->map->easeTo(cameraOf(lng, lat, zoom, bearing, pitch));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeJumpTo(JNIEnv*, jobject, jlong ptr, jdouble lng, jdouble lat, jdouble zoom,
+                                                                                       jdouble bearing, jdouble pitch) {
+  handle(ptr)->map->jumpTo(cameraOf(lng, lat, zoom, bearing, pitch));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeAddSource(JNIEnv* env, jobject, jlong ptr, jstring id, jstring json) {
+  handle(ptr)->map->addSource(str(env, id), str(env, json));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetGeoJson(JNIEnv* env, jobject, jlong ptr, jstring id, jstring json) {
+  handle(ptr)->map->setGeoJson(str(env, id), str(env, json));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeRemoveSource(JNIEnv* env, jobject, jlong ptr, jstring id) {
+  handle(ptr)->map->removeSource(str(env, id));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeAddLayer(JNIEnv* env, jobject, jlong ptr, jstring json, jstring before) {
+  handle(ptr)->map->addLayer(str(env, json), str(env, before));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeRemoveLayer(JNIEnv* env, jobject, jlong ptr, jstring id) {
+  handle(ptr)->map->removeLayer(str(env, id));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetPaintProperty(JNIEnv* env, jobject, jlong ptr, jstring layer, jstring name,
+                                                                                                 jstring value) {
+  handle(ptr)->map->setPaintProperty(str(env, layer), str(env, name), str(env, value));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetLayoutProperty(JNIEnv* env, jobject, jlong ptr, jstring layer, jstring name,
+                                                                                                  jstring value) {
+  handle(ptr)->map->setLayoutProperty(str(env, layer), str(env, name), str(env, value));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetFilter(JNIEnv* env, jobject, jlong ptr, jstring layer, jstring filter) {
+  handle(ptr)->map->setFilter(str(env, layer), str(env, filter));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetLayerVisible(JNIEnv* env, jobject, jlong ptr, jstring layer, jboolean visible) {
+  handle(ptr)->map->setLayerVisible(str(env, layer), visible);
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetTerrain(JNIEnv* env, jobject, jlong ptr, jstring source, jdouble exaggeration,
+                                                                                           jdouble relief) {
+  handle(ptr)->map->setTerrain(str(env, source), exaggeration, relief);
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeClearTerrain(JNIEnv*, jobject, jlong ptr) {
+  handle(ptr)->map->clearTerrain();
+}
+
+extern "C" JNIEXPORT jdoubleArray JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeProject(JNIEnv* env, jobject, jlong ptr, jdouble lng, jdouble lat) {
+  const auto p = handle(ptr)->map->project(lng, lat);
+  const jdouble values[2] = {p.first, p.second};
+  jdoubleArray out = env->NewDoubleArray(2);
+  env->SetDoubleArrayRegion(out, 0, 2, values);
+  return out;
+}
+
+extern "C" JNIEXPORT jdoubleArray JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeUnproject(JNIEnv* env, jobject, jlong ptr, jdouble x, jdouble y) {
+  const auto p = handle(ptr)->map->unproject(x, y);
+  if (!p) return nullptr;
+  const jdouble values[2] = {p->first, p->second};
+  jdoubleArray out = env->NewDoubleArray(2);
+  env->SetDoubleArrayRegion(out, 0, 2, values);
+  return out;
+}
+
+extern "C" JNIEXPORT jbyteArray JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeQueryFeatures(JNIEnv* env, jobject, jlong ptr, jdouble x, jdouble y,
+                                                                                                    jobjectArray layers, jdouble radius) {
+  std::vector<std::string> names;
+  const jsize count = layers ? env->GetArrayLength(layers) : 0;
+  for (jsize i = 0; i < count; i++) {
+    auto item = static_cast<jstring>(env->GetObjectArrayElement(layers, i));
+    names.push_back(str(env, item));
+    env->DeleteLocalRef(item);
+  }
+  return bytes(env, handle(ptr)->map->queryRenderedFeatures(x, y, names, radius));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeClearDiskCache(JNIEnv*, jobject, jlong ptr) {
+  handle(ptr)->map->clearDiskCache();
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeDownloadRegion(JNIEnv*, jobject, jlong ptr, jdouble west, jdouble south, jdouble east,
+                                                                                               jdouble north, jint minZoom, jint maxZoom, jlong request) {
+  Handle* h = handle(ptr);
+  jobject ref = h->view;
+  jmethodID progress = h->onProgress;
+  h->map->downloadRegion(west, south, east, north, minZoom, maxZoom, [ref, progress, request](size_t done, size_t total) {
+    Env e;
+    e.env->CallVoidMethod(ref, progress, request, static_cast<jlong>(done), static_cast<jlong>(total));
+    if (e.env->ExceptionCheck()) e.env->ExceptionClear();
+  });
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_grangedevgroup_mapkern_MapView_nativeSetProjection(JNIEnv*, jobject, jlong ptr, jboolean globe) {
