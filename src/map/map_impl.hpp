@@ -86,6 +86,7 @@ class MapImpl {
   void setView(const std::string& view);
   std::string currentView();
   void updateOverlay();
+  std::array<double, 4> controlInsets{};
   std::optional<double> cameraFloor(Terrain& terrain);
   double nearPeak(Terrain& terrain);
   void setTerrain(const Value& spec);
